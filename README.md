@@ -35,3 +35,56 @@ Al elegir un barbero el usuario prioriza la calidad del trabajo con un 91.7% por
 <p align="justify">
 Existe una validación positiva para la introducción de una solución digital en el mercado. El 77.1% de los usuarios muestran interés en una aplicación para solicitar servicios y un 64.6% confirma que utilizará una plataforma con un modelo operativo a aplicaciones existentes adaptada a este mercado. El modelo tradicional de este mercado presenta una saturación y una desorganización que afecta la experiencia del cliente. La implementación de una plataforma tecnológica no sólo resolvería el problema de la gestión de tiempos y disponibilidad sino que también capturará un segmento importante en los usuarios que buscan comodidad y calidad, siempre que mantenga un estándar alto de servicio y se ofrezca flexibilidad en métodos de pago.
 </p>
+
+## Gráficas de la encuesta
+
+#### ¿Cuánto tiempo sueles esperar en una barbería?
+<p align="left">
+  <img src="./1.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Con qué frecuencia acudes a una barbería?
+<p align="left">
+  <img src="./2.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Cómo agendas actualmente tu servicio de barbería?
+<p align="left">
+  <img src="./3.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Qué problemas has tenido para agendar un servicio?
+<p align="left">
+  <img src="./4.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Te ha pasado que llegas a la barbería y tienes que esperar mucho tiempo?
+<p align="left">
+  <img src="./5.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Te gustaría una app para pedir servicios de barbería a domicilio o en sucursal?
+<p align="left">
+  <img src="./6.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Cómo prefieres pagar el servicio?
+<p align="left">
+  <img src="./7.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Qué característica es más importante para ti al elegir un barbero?
+<p align="left">
+  <img src="./8.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Qué rango de precio estarías dispuesto a pagar por un corte a domicilio?
+<p align="left">
+  <img src="./9.png" width="550" style="border-radius: 12px;">
+</p>
+
+#### ¿Utilizarias una app estilo didi food pero enfocada a barberia?
+
+<p align="left">
+  <img src="./10.png" width="550" align="left">
+</p>
