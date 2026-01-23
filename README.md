@@ -36,55 +36,92 @@ Al elegir un barbero el usuario prioriza la calidad del trabajo con un 91.7% por
 Existe una validación positiva para la introducción de una solución digital en el mercado. El 77.1% de los usuarios muestran interés en una aplicación para solicitar servicios y un 64.6% confirma que utilizará una plataforma con un modelo operativo a aplicaciones existentes adaptada a este mercado. El modelo tradicional de este mercado presenta una saturación y una desorganización que afecta la experiencia del cliente. La implementación de una plataforma tecnológica no sólo resolvería el problema de la gestión de tiempos y disponibilidad sino que también capturará un segmento importante en los usuarios que buscan comodidad y calidad, siempre que mantenga un estándar alto de servicio y se ofrezca flexibilidad en métodos de pago.
 </p>
 
-## Gráficas de la encuesta
+#### Gráficas de la encuesta
 
-#### ¿Cuánto tiempo sueles esperar en una barbería?
-<p align="left">
-  <img src="./1.png" width="550" style="border-radius: 12px;">
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>¿Cuánto tiempo sueles esperar en una barbería?</h4>
+      <img src="./1.png" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h4>¿Con qué frecuencia acudes a una barbería?</h4>
+      <img src="./2.png" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>¿Cómo agendas actualmente tu servicio de barbería?</h4>
+      <img src="./3.png" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h4>¿Qué problemas has tenido para agendar un servicio?</h4>
+      <img src="./4.png" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>¿Te ha pasado que llegas a la barbería y tienes que esperar mucho tiempo?</h4>
+      <img src="./5.png" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h4>¿Te gustaría una app para pedir servicios de barbería a domicilio o en sucursal?</h4>
+      <img src="./6.png" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>¿Cómo prefieres pagar el servicio?</h4>
+      <img src="./7.png" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h4>¿Qué característica es más importante para ti al elegir un barbero?</h4>
+      <img src="./8.png" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>¿Qué rango de precio estarías dispuesto a pagar por un corte a domicilio?</h4>
+      <img src="./9.png" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h4>¿Utilizarías una app estilo didi food pero enfocada a barbería?</h4>
+      <img src="./10.png" width="100%">
+    </td>
+  </tr>
+</table>
+
+
+## Alcance
+
+<p align="justify">
+El proyecto se centra en el desarrollo de una plataforma digital que facilite la logística de servicios de barbería a domicilio. Incluye la automatización de la asignación de turnos, el monitoreo del servicio en tiempo real, la gestión de geolocalización para conectar al barbero más cercano con el cliente y la visibilidad de perfiles profesionales para mejorar la confianza del usuario. El objetivo final es transformar un servicio estático en uno dinámico y puntual.
 </p>
 
-#### ¿Con qué frecuencia acudes a una barbería?
-<p align="left">
-  <img src="./2.png" width="550" style="border-radius: 12px;">
-</p>
+## Limitaciones
 
-#### ¿Cómo agendas actualmente tu servicio de barbería?
-<p align="left">
-  <img src="./3.png" width="550" style="border-radius: 12px;">
-</p>
+- **Presupuestarias y Técnicas:** El desarrollo inicial se limitará a un Producto Mínimo Viable (MVP) debido a la restricción de fondos y conocimientos técnicos especializados.
+- **Conflictos Interpersonales:** El sistema no tiene capacidad para intervenir o resolver disputas personales, malentendidos o problemas de actitud entre el barbero y el cliente.
+- **Calidad Técnica del Corte:** El software monitorea la logística, pero no garantiza la pericia técnica o el talento artístico del barbero.
 
-#### ¿Qué problemas has tenido para agendar un servicio?
-<p align="left">
-  <img src="./4.png" width="550" style="border-radius: 12px;">
-</p>
+## Técnicas utilizadas
 
-#### ¿Te ha pasado que llegas a la barbería y tienes que esperar mucho tiempo?
-<p align="left">
-  <img src="./5.png" width="550" style="border-radius: 12px;">
-</p>
+Primero realizamos una **lluvia de ideas**, donde pensé en diferentes ideas de aplicaciones y anoté posibles funciones. Después de analizarlas, fui descartando algunas hasta quedarme con la que mejor resolvía una necesidad real.
+  
+También aplicamos un **análisis de problemas**, identificando la dificultad que tienen algunas personas para acudir a una barbería y cómo una aplicación podría facilitar el acceso a este servicio a domicilio.
 
-#### ¿Te gustaría una app para pedir servicios de barbería a domicilio o en sucursal?
-<p align="left">
-  <img src="./6.png" width="550" style="border-radius: 12px;">
-</p>
+Además, hicimos una investigación de aplicaciones similares, revisando qué funcionalidades ofrecen, cuáles son sus ventajas y qué aspectos podrían mejorarse, lo cual me ayudó a ajustar mi propuesta.
 
-#### ¿Cómo prefieres pagar el servicio?
-<p align="left">
-  <img src="./7.png" width="550" style="border-radius: 12px;">
-</p>
+Posteriormente, realizamos la **definición de requisitos**, donde listé las funciones principales que debía tener la aplicación, como el registro de usuarios, uso de mapas, agendado de citas y pagos.
+Finalmente, utilizamos **prototipado**, realizando bocetos simples de las pantallas para tener una mejor idea de cómo funcionaría la aplicación antes de comenzar a programar.
 
-#### ¿Qué característica es más importante para ti al elegir un barbero?
-<p align="left">
-  <img src="./8.png" width="550" style="border-radius: 12px;">
-</p>
+## Referencias bibliograficas
 
-#### ¿Qué rango de precio estarías dispuesto a pagar por un corte a domicilio?
-<p align="left">
-  <img src="./9.png" width="550" style="border-radius: 12px;">
-</p>
-
-#### ¿Utilizarias una app estilo didi food pero enfocada a barberia?
-
-<p align="left">
-  <img src="./10.png" width="550" align="left">
+<p align="justify">
+  
+ - Profeco [Profeco]. (2025, junio). BARBERÍAS Conoce qué servicios ofrecen y qué factores influyen en su costo. Revista del Consumidor. https://revistadelconsumidor.profeco.gob.mx/media/revistas/sumario/sumario_brujula_de_compra_2025_6_breDCrSY.pdf?utm_source=copilot.com
+  
+ - Redacción. (2025, September 30). Cómo la tecnología ayuda a las barberías a reducir costes y mejorar la fidelización de clientes. Diario Siglo XXI. https://www.diariosigloxxi.com/texto-diario/mostrar/5449460/como-tecnologia-ayuda-barberias-reducir-costes-mejorar-fidelizacion-clientes
+   
+ - Tapia, E. C., & Tapia, E. C. (2024, September 19). Barberías y belleza en la era digital: La nueva forma de reservar citas en 2024. Emprendedor | El Medio Líder De Emprendimiento Y Negocios. https://emprendedor.com/barberias-y-belleza-en-la-era-digital-la-nueva-forma-de-reservar-citas-en-2024/
 </p>
