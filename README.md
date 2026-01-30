@@ -119,7 +119,7 @@ Finalmente, utilizamos **prototipado**, realizando bocetos simples de las pantal
 
 <p align="justify">
   
- - Profeco [Profeco]. (2025, junio). BARBERÍAS Conoce qué servicios ofrecen y qué factores influyen en su costo. Revista del Consumidor. https://revistadelconsumidor.profeco.gob.mx/media/revistas/sumario/sumario_brujula_de_compra_2025_6_breDCrSY.pdf?utm_source=copilot.com
+ - Profeco [Profeco]. (2025, junio). BARBERÍAS Conoce qué servicios ofrecen y qué factores influyen en su costo. Revista del Consumidor. https://revistadelconsumidor.profeco.gob.mx/media/revistas/sumario/sumario_brujula_de_compra_2025_6_breDCrSY.pdf
   
  - Redacción. (2025, September 30). Cómo la tecnología ayuda a las barberías a reducir costes y mejorar la fidelización de clientes. Diario Siglo XXI. https://www.diariosigloxxi.com/texto-diario/mostrar/5449460/como-tecnologia-ayuda-barberias-reducir-costes-mejorar-fidelizacion-clientes
    
