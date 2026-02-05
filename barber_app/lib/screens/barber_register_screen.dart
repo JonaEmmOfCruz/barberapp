@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class BarberRegisterScreen extends StatefulWidget {
   const BarberRegisterScreen({super.key});
@@ -24,7 +26,7 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
   bool _isPasswordVisible = false;
   bool _acceptTerms = false;
   String _selectedVehicleType = 'Motocicleta';
-  
+
   final List<String> _vehicleTypes = ['Motocicleta', 'Automóvil'];
   final List<String> _selectedServices = [];
   final List<String> _availableServices = [
@@ -35,6 +37,36 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     'Cejas',
     'Tinte',
   ];
+  // Variable para almacenar la imagen seleccionada
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  // Método para seleccionar imagen desde la galería
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      print("Error al seleccionar imagen: $e");
+      // Puedes mostrar un snackbar o diálogo de error aquí
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar imagen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -143,40 +175,70 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
       children: [
         // Avatar
         Center(
-          child: Stack(
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.content_cut,
-                  size: 50,
-                  color: AppColors.secondary,
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary,
-                    shape: BoxShape.circle,
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: Stack(
+                      children: [
+                        // Contenedor del avatar con imagen o icono por defecto
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: _selectedImage != null
+                              ? ClipOval(
+                                  child: Image.file(
+                                    _selectedImage!,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.content_cut,
+                                  size: 50,
+                                  color: AppColors.secondary,
+                                ),
+                        ),
+                        // Ícono de cámara (ahora es parte del GestureDetector)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    size: 16,
-                    color: Colors.white,
+                ),
+                
+                // Texto indicativo opcional
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Toca para agregar foto',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                
+                const SizedBox(height: 32),
         
         const SizedBox(height: 24),
         
