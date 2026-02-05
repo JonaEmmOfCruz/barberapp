@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../main.dart';
-//import 'user/user_home_screen.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({super.key});
@@ -18,6 +19,10 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _acceptTerms = false;
+  
+  // Variable para almacenar la imagen seleccionada
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
@@ -27,6 +32,33 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  // Método para seleccionar imagen desde la galería
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      print("Error al seleccionar imagen: $e");
+      // Puedes mostrar un snackbar o diálogo de error aquí
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar imagen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -49,40 +81,68 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
               children: [
                 const SizedBox(height: 20),
                 
-                // Avatar
+                // Avatar con funcionalidad de selección de imagen
                 Center(
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.person,
-                          size: 50,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
+                  child: GestureDetector(
+                    onTap: _pickImage,
+                    child: Stack(
+                      children: [
+                        // Contenedor del avatar con imagen o icono por defecto
+                        Container(
+                          width: 100,
+                          height: 100,
                           decoration: BoxDecoration(
-                            color: AppColors.primary,
+                            color: AppColors.primary.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 16,
-                            color: Colors.white,
+                          child: _selectedImage != null
+                              ? ClipOval(
+                                  child: Image.file(
+                                    _selectedImage!,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: AppColors.primary,
+                                ),
+                        ),
+                        // Ícono de cámara (ahora es parte del GestureDetector)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Texto indicativo opcional
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Toca para agregar foto',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 
@@ -242,6 +302,10 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                   child: ElevatedButton(
                     onPressed: _acceptTerms ? () {
                       if (_formKey.currentState!.validate()) {
+                        // Aquí puedes usar _selectedImage para enviarla al servidor
+                        if (_selectedImage != null) {
+                          print('Imagen seleccionada: ${_selectedImage!.path}');
+                        }
                         /*
                         Navigator.pushAndRemoveUntil(
                           context,
