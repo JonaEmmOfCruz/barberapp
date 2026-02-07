@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../main.dart';
+import 'legal_screens.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({super.key});
@@ -20,7 +21,6 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
   bool _isPasswordVisible = false;
   bool _acceptTerms = false;
   
-  // Variable para almacenar la imagen seleccionada
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
@@ -34,7 +34,6 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
     super.dispose();
   }
 
-  // Método para seleccionar imagen desde la galería
   Future<void> _pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(
@@ -50,8 +49,6 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
         });
       }
     } catch (e) {
-      print("Error al seleccionar imagen: $e");
-      // Puedes mostrar un snackbar o diálogo de error aquí
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al seleccionar imagen: $e'),
@@ -66,34 +63,46 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Registro de Usuario'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.text,
+        title: Text(
+          'Registro de Usuario',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1.2,
+          ),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
                 
-                // Avatar con funcionalidad de selección de imagen
+                // Avatar
                 Center(
-                  child: GestureDetector(
-                    onTap: _pickImage,
-                    child: Stack(
-                      children: [
-                        // Contenedor del avatar con imagen o icono por defecto
-                        Container(
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
                           width: 100,
                           height: 100,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: Colors.transparent,
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primary.withOpacity(0.2),
+                              width: 1.5,
+                            ),
                           ),
                           child: _selectedImage != null
                               ? ClipOval(
@@ -105,57 +114,34 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                                   ),
                                 )
                               : Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: AppColors.primary,
+                                  Icons.person_outline,
+                                  size: 48,
+                                  color: AppColors.primary.withOpacity(0.5),
                                 ),
                         ),
-                        // Ícono de cámara (ahora es parte del GestureDetector)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                // Texto indicativo opcional
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'Toca para agregar foto',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Toca para agregar foto',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w300,
+                          color: AppColors.textSecondary.withOpacity(0.6),
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 48),
                 
                 // Nombre completo
-                _buildLabel('Nombre completo'),
-                TextFormField(
+                _buildLabel('NOMBRE COMPLETO'),
+                _buildTextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    hintText: 'Juan Pérez',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
+                  hintText: 'Juan Pérez',
+                  icon: Icons.person_outlined,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Ingresa tu nombre';
@@ -164,17 +150,15 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                   },
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
                 // Correo
-                _buildLabel('Correo electrónico'),
-                TextFormField(
+                _buildLabel('CORREO ELECTRÓNICO'),
+                _buildTextField(
                   controller: _emailController,
+                  hintText: 'ejemplo@correo.com',
+                  icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    hintText: 'ejemplo@correo.com',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Ingresa tu correo';
@@ -183,17 +167,15 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                   },
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
                 // Teléfono
-                _buildLabel('Teléfono'),
-                TextFormField(
+                _buildLabel('TELÉFONO'),
+                _buildTextField(
                   controller: _phoneController,
+                  hintText: '+52 55 1234 5678',
+                  icon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    hintText: '+52 55 1234 5678',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Ingresa tu teléfono';
@@ -202,48 +184,66 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                   },
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
                 // Contraseña
-                _buildLabel('Contraseña'),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  decoration: InputDecoration(
-                    hintText: '••••••••',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible 
-                          ? Icons.visibility_off_outlined 
-                          : Icons.visibility_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                _buildLabel('CONTRASEÑA'),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.1),
+                      width: 1,
                     ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
-                    }
-                    return null;
-                  },
+                  child: TextFormField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '••••••••',
+                      hintStyle: const TextStyle(fontWeight: FontWeight.w300),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      prefixIcon: const Icon(Icons.lock_outlined, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible 
+                            ? Icons.visibility_off_outlined 
+                            : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.length < 6) {
+                        return 'La contraseña debe tener al menos 6 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
                 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
                 // Confirmar contraseña
-                _buildLabel('Confirmar contraseña'),
-                TextFormField(
+                _buildLabel('CONFIRMAR CONTRASEÑA'),
+                _buildTextField(
                   controller: _confirmPasswordController,
+                  hintText: '••••••••',
+                  icon: Icons.lock_outlined,
                   obscureText: !_isPasswordVisible,
-                  decoration: const InputDecoration(
-                    hintText: '••••••••',
-                    prefixIcon: Icon(Icons.lock_outlined),
-                  ),
                   validator: (value) {
                     if (value != _passwordController.text) {
                       return 'Las contraseñas no coinciden';
@@ -252,57 +252,138 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                   },
                 ),
                 
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
                 
                 // Términos y condiciones
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _acceptTerms,
-                      onChanged: (value) {
-                        setState(() {
-                          _acceptTerms = value ?? false;
-                        });
-                      },
-                      activeColor: AppColors.primary,
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.1),
+                      width: 1,
                     ),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: 'Acepto los ',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          children: [
-                            TextSpan(
-                              text: 'Términos y Condiciones',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const TextSpan(text: ' y la '),
-                            TextSpan(
-                              text: 'Política de Privacidad',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: _acceptTerms,
+                        onChanged: (value) {
+                          setState(() {
+                            _acceptTerms = value ?? false;
+                          });
+                        },
+                        activeColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'Acepto los ',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w300,
+                              color: AppColors.textSecondary,
+                            ),
+                            children: [
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.middle,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const LegalScreen(
+                                            type: 'terms',
+                                            isForBarber: false,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      child: Text(
+                                        'Términos y Condiciones',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w500,
+                                          letterSpacing: 0.8,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: AppColors.primary.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const TextSpan(text: ' y la '),
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.middle,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const LegalScreen(
+                                            type: 'privacy',
+                                            isForBarber: false,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      child: Text(
+                                        'Política de Privacidad',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w500,
+                                          letterSpacing: 0.8,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: AppColors.primary.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 40),
                 
                 // Botón de registro
                 SizedBox(
                   width: double.infinity,
+                  height: 56,
                   child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
                     onPressed: _acceptTerms ? () {
                       if (_formKey.currentState!.validate()) {
-                        // Aquí puedes usar _selectedImage para enviarla al servidor
                         if (_selectedImage != null) {
                           print('Imagen seleccionada: ${_selectedImage!.path}');
                         }
@@ -314,11 +395,11 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                         );*/
                       }
                     } : null,
-                    child: const Text('Crear Cuenta'),
+                    child: const Text('CREAR CUENTA'),
                   ),
                 ),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 48),
               ],
             ),
           ),
@@ -332,7 +413,50 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.labelLarge,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1.2,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.1),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: obscureText,
+        style: TextStyle(
+          color: AppColors.text,
+          fontWeight: FontWeight.w400,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(fontWeight: FontWeight.w300),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
+          prefixIcon: Icon(icon, size: 20),
+        ),
+        validator: validator,
       ),
     );
   }
