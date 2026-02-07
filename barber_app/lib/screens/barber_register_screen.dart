@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'legal_screens.dart';
 
 class BarberRegisterScreen extends StatefulWidget {
   const BarberRegisterScreen({super.key});
@@ -14,7 +13,6 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
   
-  // Controllers
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -26,7 +24,7 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
   bool _isPasswordVisible = false;
   bool _acceptTerms = false;
   String _selectedVehicleType = 'Motocicleta';
-
+  
   final List<String> _vehicleTypes = ['Motocicleta', 'Automóvil'];
   final List<String> _selectedServices = [];
   final List<String> _availableServices = [
@@ -37,36 +35,6 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     'Cejas',
     'Tinte',
   ];
-  // Variable para almacenar la imagen seleccionada
-  File? _selectedImage;
-  final ImagePicker _picker = ImagePicker();
-
-  // Método para seleccionar imagen desde la galería
-  Future<void> _pickImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-      
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
-      }
-    } catch (e) {
-      print("Error al seleccionar imagen: $e");
-      // Puedes mostrar un snackbar o diálogo de error aquí
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al seleccionar imagen: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   @override
   void dispose() {
@@ -85,15 +53,25 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Registro de Barbero'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.text,
+        title: Text(
+          'Registro de Barbero',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1.2,
+          ),
+        ),
       ),
       body: Theme(
         data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
             primary: AppColors.secondary,
+            secondary: AppColors.secondary.withOpacity(0.1),
           ),
         ),
         child: Stepper(
@@ -112,55 +90,73 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
           },
           controlsBuilder: (context, details) {
             return Padding(
-              padding: const EdgeInsets.only(top: 20),
+              padding: const EdgeInsets.only(top: 32),
               child: Row(
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.secondary,
+                  if (_currentStep > 0) ...[
+                    Expanded(
+                      child: SizedBox(
+                        height: 50,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.secondary,
+                            side: BorderSide(
+                              color: AppColors.secondary.withOpacity(0.3),
+                              width: 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 1.2,
+                              fontSize: 11,
+                            ),
+                          ),
+                          onPressed: details.onStepCancel,
+                          child: const Text('ATRÁS'),
+                        ),
                       ),
-                      onPressed: details.onStepContinue,
-                      child: Text(_currentStep == 2 ? 'Enviar Solicitud' : 'Continuar'),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1.2,
+                            fontSize: 11,
+                          ),
+                        ),
+                        onPressed: details.onStepContinue,
+                        child: Text(_currentStep == 2 ? 'ENVIAR SOLICITUD' : 'CONTINUAR'),
+                      ),
                     ),
                   ),
-                  if (_currentStep > 0) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.secondary,
-                          side: const BorderSide(color: AppColors.secondary),
-                        ),
-                        onPressed: details.onStepCancel,
-                        child: const Text('Atrás'),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             );
           },
           steps: [
-            // Paso 1: Información personal
-            Step(
-              state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-              isActive: _currentStep >= 0,
-              title: const Text('Datos Personales'),
+            _buildStep(
+              title: 'Datos Personales',
               content: _buildPersonalInfoStep(),
             ),
-            // Paso 2: Experiencia y servicios
-            Step(
-              state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-              isActive: _currentStep >= 1,
-              title: const Text('Experiencia'),
+            _buildStep(
+              title: 'Experiencia',
               content: _buildExperienceStep(),
             ),
-            // Paso 3: Vehículo y documentos
-            Step(
-              state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-              isActive: _currentStep >= 2,
-              title: const Text('Vehículo'),
+            _buildStep(
+              title: 'Vehículo',
               content: _buildVehicleStep(),
             ),
           ],
@@ -169,132 +165,120 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     );
   }
 
+  Step _buildStep({required String title, required Widget content}) {
+    return Step(
+      state: _currentStep > _availableServices.indexOf(title) 
+        ? StepState.complete 
+        : StepState.indexed,
+      isActive: _currentStep >= _availableServices.indexOf(title),
+      title: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1.2,
+          color: _currentStep >= _availableServices.indexOf(title)
+            ? AppColors.secondary
+            : AppColors.textSecondary.withOpacity(0.5),
+        ),
+      ),
+      content: content,
+    );
+  }
+
   Widget _buildPersonalInfoStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avatar
         Center(
-                  child: GestureDetector(
-                    onTap: _pickImage,
-                    child: Stack(
-                      children: [
-                        // Contenedor del avatar con imagen o icono por defecto
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: _selectedImage != null
-                              ? ClipOval(
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.content_cut,
-                                  size: 50,
-                                  color: AppColors.secondary,
-                                ),
-                        ),
-                        // Ícono de cámara (ahora es parte del GestureDetector)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.secondary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                // Texto indicativo opcional
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'Toca para agregar foto',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.secondary.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(
+              Icons.content_cut,
+              size: 48,
+              color: AppColors.secondary.withOpacity(0.5),
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 40),
+        
+        _buildLabel('NOMBRE COMPLETO'),
+        _buildTextField(
+          controller: _nameController,
+          hintText: 'Juan Pérez',
+          icon: Icons.person_outlined,
+        ),
         
         const SizedBox(height: 24),
         
-        _buildLabel('Nombre completo'),
-        TextFormField(
-          controller: _nameController,
-          decoration: const InputDecoration(
-            hintText: 'Juan Pérez',
-            prefixIcon: Icon(Icons.person_outline),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        _buildLabel('Correo electrónico'),
-        TextFormField(
+        _buildLabel('CORREO ELECTRÓNICO'),
+        _buildTextField(
           controller: _emailController,
+          hintText: 'ejemplo@correo.com',
+          icon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            hintText: 'ejemplo@correo.com',
-            prefixIcon: Icon(Icons.email_outlined),
-          ),
         ),
         
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         
-        _buildLabel('Teléfono'),
-        TextFormField(
+        _buildLabel('TELÉFONO'),
+        _buildTextField(
           controller: _phoneController,
+          hintText: '+52 55 1234 5678',
+          icon: Icons.phone_outlined,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            hintText: '+52 55 1234 5678',
-            prefixIcon: Icon(Icons.phone_outlined),
-          ),
         ),
         
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         
-        _buildLabel('Contraseña'),
-        TextFormField(
-          controller: _passwordController,
-          obscureText: !_isPasswordVisible,
-          decoration: InputDecoration(
-            hintText: '••••••••',
-            prefixIcon: const Icon(Icons.lock_outlined),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _isPasswordVisible 
-                  ? Icons.visibility_off_outlined 
-                  : Icons.visibility_outlined,
+        _buildLabel('CONTRASEÑA'),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppColors.secondary.withOpacity(0.1),
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextFormField(
+            controller: _passwordController,
+            obscureText: !_isPasswordVisible,
+            style: TextStyle(
+              color: AppColors.text,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: InputDecoration(
+              hintText: '••••••••',
+              hintStyle: const TextStyle(fontWeight: FontWeight.w300),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 18,
               ),
-              onPressed: () {
-                setState(() {
-                  _isPasswordVisible = !_isPasswordVisible;
-                });
-              },
+              prefixIcon: const Icon(Icons.lock_outlined, size: 20),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isPasswordVisible 
+                    ? Icons.visibility_off_outlined 
+                    : Icons.visibility_outlined,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
             ),
           ),
         ),
@@ -306,28 +290,59 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel('Años de experiencia'),
-        TextFormField(
-          controller: _experienceController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: '5',
-            prefixIcon: Icon(Icons.work_outline),
-            suffixText: 'años',
+        _buildLabel('AÑOS DE EXPERIENCIA'),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppColors.secondary.withOpacity(0.1),
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextFormField(
+            controller: _experienceController,
+            keyboardType: TextInputType.number,
+            style: TextStyle(
+              color: AppColors.text,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: const InputDecoration(
+              hintText: '5',
+              hintStyle: TextStyle(fontWeight: FontWeight.w300),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 18,
+              ),
+              prefixIcon: Icon(Icons.work_outline, size: 20),
+              suffixText: 'años',
+              suffixStyle: TextStyle(
+                fontWeight: FontWeight.w300,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
         ),
         
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         
-        _buildLabel('Servicios que ofreces'),
-        const SizedBox(height: 8),
+        _buildLabel('SERVICIOS QUE OFRECES'),
+        const SizedBox(height: 12),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 12,
+          runSpacing: 12,
           children: _availableServices.map((service) {
             final isSelected = _selectedServices.contains(service);
-            return FilterChip(
-              label: Text(service),
+            return ChoiceChip(
+              label: Text(
+                service.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1,
+                  color: isSelected ? AppColors.secondary : AppColors.textSecondary.withOpacity(0.7),
+                ),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 setState(() {
@@ -338,49 +353,63 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
                   }
                 });
               },
-              selectedColor: AppColors.secondary.withOpacity(0.2),
-              checkmarkColor: AppColors.secondary,
-              labelStyle: TextStyle(
-                color: isSelected ? AppColors.secondary : AppColors.text,
+              backgroundColor: Colors.transparent,
+              selectedColor: AppColors.secondary.withOpacity(0.1),
+              side: BorderSide(
+                color: isSelected 
+                  ? AppColors.secondary 
+                  : AppColors.secondary.withOpacity(0.1),
+                width: 1,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
             );
           }).toList(),
         ),
         
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         
-        _buildLabel('Certificaciones'),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F4F8),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.secondary.withOpacity(0.3),
-              style: BorderStyle.solid,
+        _buildLabel('CERTIFICACIONES'),
+        GestureDetector(
+          onTap: () {},
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.secondary.withOpacity(0.1),
+                width: 1,
+                style: BorderStyle.solid,
+              ),
             ),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.upload_file,
-                size: 40,
-                color: AppColors.secondary,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Subir certificados',
-                style: TextStyle(
-                  color: AppColors.secondary,
-                  fontWeight: FontWeight.w600,
+            child: Column(
+              children: [
+                Icon(
+                  Icons.upload_outlined,
+                  size: 32,
+                  color: AppColors.secondary.withOpacity(0.5),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'PDF, JPG o PNG (máx. 5MB)',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  'Subir certificados',
+                  style: TextStyle(
+                    color: AppColors.secondary,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'PDF, JPG o PNG (máx. 5MB)',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w300,
+                    color: AppColors.textSecondary.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -391,95 +420,184 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel('Tipo de vehículo'),
-        const SizedBox(height: 8),
+        _buildLabel('TIPO DE VEHÍCULO'),
+        const SizedBox(height: 12),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 12,
+          runSpacing: 12,
           children: _vehicleTypes.map((type) {
             final isSelected = _selectedVehicleType == type;
             return ChoiceChip(
-              label: Text(type),
+              label: Text(
+                type.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1,
+                  color: isSelected ? AppColors.secondary : AppColors.textSecondary.withOpacity(0.7),
+                ),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 setState(() {
                   _selectedVehicleType = type;
                 });
               },
-              selectedColor: AppColors.secondary.withOpacity(0.2),
-              labelStyle: TextStyle(
-                color: isSelected ? AppColors.secondary : AppColors.text,
+              backgroundColor: Colors.transparent,
+              selectedColor: AppColors.secondary.withOpacity(0.1),
+              side: BorderSide(
+                color: isSelected 
+                  ? AppColors.secondary 
+                  : AppColors.secondary.withOpacity(0.1),
+                width: 1,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
             );
           }).toList(),
         ),
         
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         
         if (_selectedVehicleType != 'A pie') ...[
-          _buildLabel('Marca y modelo'),
-          TextFormField(
+          _buildLabel('MARCA Y MODELO'),
+          _buildTextField(
             controller: _vehicleController,
-            decoration: const InputDecoration(
-              hintText: 'Honda CRF 250',
-              prefixIcon: Icon(Icons.directions_car_outlined),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          _buildLabel('Placa'),
-          TextFormField(
-            controller: _licensePlateController,
-            decoration: const InputDecoration(
-              hintText: 'ABC-123',
-              prefixIcon: Icon(Icons.confirmation_number_outlined),
-            ),
+            hintText: 'Honda CRF 250',
+            icon: Icons.directions_car_outlined,
           ),
           
           const SizedBox(height: 24),
+          
+          _buildLabel('PLACA'),
+          _buildTextField(
+            controller: _licensePlateController,
+            hintText: 'ABC-123',
+            icon: Icons.confirmation_number_outlined,
+          ),
+          
+          const SizedBox(height: 32),
         ],
         
-        _buildLabel('Identificación oficial'),
+        _buildLabel('DOCUMENTACIÓN'),
+        const SizedBox(height: 12),
+        
         _buildDocumentUploader('INE / Pasaporte'),
         
         const SizedBox(height: 16),
         
-        _buildLabel('Comprobante de domicilio'),
-        _buildDocumentUploader('Recibo de luz o agua'),
+        _buildDocumentUploader('Comprobante de domicilio'),
         
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         
-        // Términos
-        Row(
-          children: [
-            Checkbox(
-              value: _acceptTerms,
-              onChanged: (value) {
-                setState(() {
-                  _acceptTerms = value ?? false;
-                });
-              },
-              activeColor: AppColors.secondary,
+        // Términos y condiciones
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            border: Border.all(
+              color: AppColors.secondary.withOpacity(0.1),
+              width: 1,
             ),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  text: 'Acepto los ',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  children: [
-                    TextSpan(
-                      text: 'Términos y Condiciones',
-                      style: TextStyle(
-                        color: AppColors.secondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _acceptTerms,
+                onChanged: (value) {
+                  setState(() {
+                    _acceptTerms = value ?? false;
+                  });
+                },
+                activeColor: AppColors.secondary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    text: 'Acepto los ',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w300,
+                      color: AppColors.textSecondary,
+                    ),
+                    children: [
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LegalScreen(
+                                    type: 'terms',
+                                    isForBarber: true,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                'Términos y Condiciones',
+                                style: TextStyle(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.8,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: AppColors.secondary.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const TextSpan(text: ' y la '),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LegalScreen(
+                                    type: 'privacy',
+                                    isForBarber: true,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                'Política de Privacidad',
+                                style: TextStyle(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.8,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: AppColors.secondary.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -487,28 +605,44 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
 
   Widget _buildDocumentUploader(String hint) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4F8),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.1),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.attach_file, color: AppColors.textSecondary),
-          const SizedBox(width: 12),
+          Icon(
+            Icons.attach_file_outlined,
+            size: 20,
+            color: AppColors.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Text(
               hint,
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(
+                color: AppColors.textSecondary.withOpacity(0.8),
+                fontWeight: FontWeight.w300,
+              ),
             ),
           ),
           TextButton(
             onPressed: () {},
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.secondary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
             child: Text(
-              'Subir',
+              'SUBIR',
               style: TextStyle(
-                color: AppColors.secondary,
-                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1.2,
               ),
             ),
           ),
@@ -522,7 +656,46 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.labelLarge,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1.2,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.1),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: TextStyle(
+          color: AppColors.text,
+          fontWeight: FontWeight.w400,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(fontWeight: FontWeight.w300),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
+          prefixIcon: Icon(icon, size: 20),
+        ),
       ),
     );
   }
@@ -530,48 +703,67 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
   void _submitForm() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.check_circle,
-                size: 60,
-                color: AppColors.success,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '¡Solicitud Enviada!',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tu solicitud está siendo revisada. Te notificaremos cuando sea aprobada.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondary,
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-                onPressed: () {
-                  Navigator.popUntil(context, (route) => route.isFirst);
-                },
-                child: const Text('Entendido'),
+                child: Icon(
+                  Icons.check_circle_outline,
+                  size: 48,
+                  color: AppColors.success,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              Text(
+                '¡Solicitud Enviada!',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Tu solicitud está siendo revisada. Te notificaremos cuando sea aprobada.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary.withOpacity(0.8),
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
+                  child: const Text('ENTENDIDO'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
