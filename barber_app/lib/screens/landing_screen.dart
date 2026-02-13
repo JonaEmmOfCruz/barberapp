@@ -23,27 +23,29 @@ class LandingScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: Colors.transparent,
                     width: 1.5,
                   ),
                   borderRadius: BorderRadius.circular(25),
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.content_cut_rounded,
-                    size: 48,
-                    color: AppColors.primary,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(23),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
-              
+        
               const SizedBox(height: 40),
               
               // Título
               Text(
                 'BarberApp',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: AppColors.primary,
+                  color: AppColors.secondary,
                   fontWeight: FontWeight.w300,
                   letterSpacing: 1.5,
                 ),
@@ -55,7 +57,7 @@ class LandingScreen extends StatelessWidget {
               Container(
                 width: 60,
                 height: 1,
-                color: AppColors.primary.withOpacity(0.3),
+                color: AppColors.secondary.withOpacity(0.3),
               ),
               
               const SizedBox(height: 24),
@@ -110,7 +112,7 @@ class LandingScreen extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.secondary,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -139,7 +141,7 @@ class LandingScreen extends StatelessWidget {
                   },
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.secondary.withOpacity(0.3),
                       width: 1,
                     ),
                     shape: RoundedRectangleBorder(
@@ -153,7 +155,7 @@ class LandingScreen extends StatelessWidget {
                   child: Text(
                     'CREAR CUENTA',
                     style: TextStyle(
-                      color: AppColors.primary,
+                      color: AppColors.secondary,
                     ),
                   ),
                 ),
@@ -173,7 +175,7 @@ class LandingScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.transparent,
         border: Border.all(
-          color: AppColors.primary.withOpacity(0.1),
+          color: AppColors.secondary.withOpacity(0.1),
           width: 1,
         ),
         borderRadius: BorderRadius.circular(16),
@@ -183,12 +185,12 @@ class LandingScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.05),
+              color: AppColors.secondary.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: AppColors.primary,
+              color: AppColors.secondary,
               size: 20,
             ),
           ),

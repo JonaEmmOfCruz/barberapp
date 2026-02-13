@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../main.dart';
 import 'legal_screens.dart';
+import '../services/api_service.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({super.key});
@@ -366,6 +367,8 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                 const SizedBox(height: 40),
                 
                 // Botón de registro
+                // Botón de registro
+                
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -382,17 +385,37 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    onPressed: _acceptTerms ? () {
+                    onPressed: _acceptTerms ? () async {
                       if (_formKey.currentState!.validate()) {
-                        if (_selectedImage != null) {
-                          print('Imagen seleccionada: ${_selectedImage!.path}');
+                        _showLoadingDialog();
+                        
+                        // 1. Registrar usuario en el backend
+                        final result = await ApiService.registerUser(
+                          name: _nameController.text.trim(),
+                          email: _emailController.text.trim(),
+                          phone: _phoneController.text.trim(),
+                          password: _passwordController.text,
+                        );
+                        
+                        Navigator.pop(context); // Cerrar loading
+                        
+                        if (result['success']) {
+                          // 2. Si hay imagen seleccionada, subirla
+                          if (_selectedImage != null) {
+                            _showUploadingDialog();
+                            
+                            await ApiService.uploadProfileImage(
+                              userId: result['user']['id'],
+                              imageFile: _selectedImage!,
+                            );
+                            
+                            Navigator.pop(context); // Cerrar uploading
+                          }
+                          
+                          _showSuccessDialog();
+                        } else {
+                          _showErrorDialog(result['message']);
                         }
-                        /*
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(builder: (_) => const UserHomeScreen()),
-                          (route) => false,
-                        );*/
                       }
                     } : null,
                     child: const Text('CREAR CUENTA'),
@@ -460,4 +483,66 @@ class _UserRegisterScreenState extends State<UserRegisterScreen> {
       ),
     );
   }
+  void _showLoadingDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(
+      child: CircularProgressIndicator(),
+    ),
+  );
 }
+
+void _showUploadingDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          const Text('Subiendo imagen...'),
+        ],
+      ),
+    ),
+  );
+}
+
+void _showSuccessDialog() {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('¡Registro Exitoso!'),
+      content: const Text('Tu cuenta ha sido creada correctamente.'),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context); // Cerrar dialog
+            Navigator.pop(context); // Regresar a login
+          },
+          child: const Text('ACEPTAR'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showErrorDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Error'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('ACEPTAR'),
+        ),
+      ],
+    ),
+  );
+}
+}
+

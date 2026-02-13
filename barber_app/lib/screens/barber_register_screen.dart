@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../main.dart';
 import 'legal_screens.dart';
 
@@ -12,6 +14,10 @@ class BarberRegisterScreen extends StatefulWidget {
 class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
+  
+  // Imagen de perfil
+  File? _profileImage;
+  final ImagePicker _picker = ImagePicker();
   
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -46,6 +52,30 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     _vehicleController.dispose();
     _licensePlateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        setState(() {
+          _profileImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar imagen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -190,23 +220,50 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Avatar con selección de foto
         Center(
-          child: Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.secondary.withOpacity(0.2),
-                width: 1.5,
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.secondary.withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: _profileImage != null
+                      ? ClipOval(
+                          child: Image.file(
+                            _profileImage!,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Icon(
+                          Icons.person_outline,
+                          size: 48,
+                          color: AppColors.secondary.withOpacity(0.5),
+                        ),
+                ),
               ),
-            ),
-            child: Icon(
-              Icons.content_cut,
-              size: 48,
-              color: AppColors.secondary.withOpacity(0.5),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'Toca para agregar foto de perfil',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w300,
+                  color: AppColors.textSecondary.withOpacity(0.6),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
           ),
         ),
         
