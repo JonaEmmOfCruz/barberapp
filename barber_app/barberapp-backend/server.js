@@ -33,7 +33,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
     Configuración de MongoDB según el usuario activo
 */
 const getMongoConfig = () => {
-    const activeUser = process.env.ACTIVE_USER || '1';
+    const activeUser = process.env.ACTIVE_USER || '3';
     console.log('ACTIVE_USER desde env:', activeUser);
 
     if (activeUser === '1') {
@@ -41,10 +41,21 @@ const getMongoConfig = () => {
             uri: process.env.USER1_MONGO_URI,
             user: process.env.USER1_NAME
         };
-    } else {
+    } else if (activeUser === '2') {
         return {
             uri: process.env.USER2_MONGO_URI,
             user: process.env.USER2_NAME
+        };
+    } else if (activeUser === '3') {
+        return {
+            uri: process.env.USER3_MONGO_URI,
+            user: process.env.USER3_NAME
+        };
+    } else {
+        console.log('Usuario no válido, usando USER1 por defecto');
+        return {
+            uri: process.env.USER1_MONGO_URI,
+            user: process.env.USER1_NAME
         };
     }
 };
