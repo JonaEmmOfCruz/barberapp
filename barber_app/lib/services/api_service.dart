@@ -1,10 +1,11 @@
+// lib/services/api_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   // PARA iOS SIMULATOR: usa localhost
-  static const String baseUrl = 'http://192.168.16.88:3000/api';
+  static const String baseUrl = 'http://192.168.100.82:3000/api';
   
   // PARA EMULADOR ANDROID: usa 10.0.2.2
   // static const String baseUrl = 'http://10.0.2.2:3000/api';
@@ -36,10 +37,16 @@ class ApiService {
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 201) {
+        // Asegurarnos de que el id esté disponible
+        final userId = data['user']?['_id'] ?? data['user']?['id'];
+        
         return {
           'success': true,
-          'message': data['message'],
-          'user': data['user']
+          'message': data['message'] ?? 'Registro exitoso',
+          'user': {
+            'id': userId,
+            ...data['user'] ?? {}
+          }
         };
       } else {
         return {
@@ -62,6 +69,9 @@ class ApiService {
     required File imageFile,
   }) async {
     try {
+      print('Subiendo imagen para usuario: $userId');
+      print('Archivo: ${imageFile.path}');
+      
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/upload/profile-image'),
@@ -69,14 +79,22 @@ class ApiService {
       
       request.fields['userId'] = userId;
       request.files.add(
-        await http.MultipartFile.fromPath('image', imageFile.path),
+        await http.MultipartFile.fromPath(
+          'image', 
+          imageFile.path,
+          filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
       );
       
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
+      print('Enviando solicitud multipart...');
+      var streamedResponse = await request.send();
+      var responseData = await streamedResponse.stream.bytesToString();
+      print('Respuesta código: ${streamedResponse.statusCode}');
+      print('Respuesta body: $responseData');
+      
       var data = jsonDecode(responseData);
       
-      if (response.statusCode == 200) {
+      if (streamedResponse.statusCode == 200) {
         return {
           'success': true,
           'imageUrl': data['imageUrl']
@@ -84,13 +102,41 @@ class ApiService {
       } else {
         return {
           'success': false,
-          'message': data['message']
+          'message': data['message'] ?? 'Error al subir imagen'
+        };
+      }
+    } catch (e) {
+      print('Error detallado: $e');
+      return {
+        'success': false,
+        'message': 'Error al subir imagen: $e'
+      };
+    }
+  }
+  
+  // Obtener imagen de perfil
+  static Future<Map<String, dynamic>> getProfileImage(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/upload/profile-image/$userId'),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'imageUrl': data['imageUrl']
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'No se pudo obtener la imagen'
         };
       }
     } catch (e) {
       return {
         'success': false,
-        'message': 'Error al subir imagen: $e'
+        'message': 'Error: $e'
       };
     }
   }
