@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // PARA iOS SIMULATOR: usa localhost
-  static const String baseUrl = 'http://192.168.100.82:3000/api';
+  static const String baseUrl = 'http://localhost:3000/api';
   
   // PARA EMULADOR ANDROID: usa 10.0.2.2
   // static const String baseUrl = 'http://10.0.2.2:3000/api';

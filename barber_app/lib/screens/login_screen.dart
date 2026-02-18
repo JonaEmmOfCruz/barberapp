@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../services/auth_service.dart';
+import 'user_home_screen.dart';
+// import 'barber_home_screen.dart'; // Cuando lo crees
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,12 +17,67 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isBarber = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    setState(() => _isLoading = true);
+    
+    // Mostrar diálogo de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    final result = await AuthService.loginUser(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      isBarber: _isBarber,
+    );
+    
+    if (context.mounted) {
+      Navigator.pop(context); // Cerrar diálogo de carga
+      
+      if (result['success']) {
+        // Navegar a la pantalla correspondiente
+        if (_isBarber) {
+          // Navigator.pushReplacement(
+          //   context,
+          //   MaterialPageRoute(builder: (_) => const BarberHomeScreen()),
+          // );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const UserHomeScreen()),
+          );
+        }
+      } else {
+        // Mostrar error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+    
+    setState(() => _isLoading = false);
   }
 
   @override
@@ -267,20 +325,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        /*
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => _isBarber 
-                              ? const BarberHomeScreen() 
-                              : const UserHomeScreen(),
-                          ),
-                        );*/
-                      }
-                    },
-                    child: const Text('INICIAR SESIÓN'),
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('INICIAR SESIÓN'),
                   ),
                 ),
                 
