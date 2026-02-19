@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../main.dart';
 import 'legal_screens.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class BarberRegisterScreen extends StatefulWidget {
   const BarberRegisterScreen({super.key});
@@ -757,72 +759,116 @@ class _BarberRegisterScreenState extends State<BarberRegisterScreen> {
     );
   }
 
-  void _submitForm() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check_circle_outline,
-                  size: 48,
-                  color: AppColors.success,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                '¡Solicitud Enviada!',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Tu solicitud está siendo revisada. Te notificaremos cuando sea aprobada.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary.withOpacity(0.8),
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.2,
-                    ),
+Future<void> _submitForm() async {
+  // 1️⃣ Preparar los datos
+  final data = {
+    "nombre": _nameController.text,
+    "correo": _emailController.text,
+    "telefono": _phoneController.text,
+    "password": _passwordController.text,
+    "experiencia": {
+      "años": int.tryParse(_experienceController.text) ?? 0,
+      "servicios": _selectedServices,
+      "pdf": null, // luego puedes agregar la ruta del PDF
+    },
+    "vehiculo": [_selectedVehicleType + ": " + _vehicleController.text]
+  };
+
+  try {
+    // 2️⃣ Hacer la petición POST al backend
+    final response = await http.post(
+      Uri.parse('http://192.168.1.210:3000/api/barbero/register/barbero'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(data),
+    );
+
+    final respBody = jsonDecode(response.body);
+
+    if (response.statusCode == 201) {
+      // ✅ Registro exitoso: mostrar diálogo
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
-                  },
-                  child: const Text('ENTENDIDO'),
+                  child: Icon(
+                    Icons.check_circle_outline,
+                    size: 48,
+                    color: AppColors.success,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                Text(
+                  '¡Solicitud Enviada!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: 1.2,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Tu solicitud está siendo revisada. Te notificaremos cuando sea aprobada.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary.withOpacity(0.8),
+                        fontWeight: FontWeight.w300,
+                      ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.secondary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1.2,
+                          ),
+                    ),
+                    onPressed: () {
+                      Navigator.popUntil(context, (route) => route.isFirst);
+                    },
+                    child: const Text('ENTENDIDO'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      );
+    } else {
+      // ❌ Error en el registro
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(respBody['message'] ?? 'Error en registro')),
+      );
+    }
+  } catch (e) {
+    // ❌ Error de conexión
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content:
+              Text('Error al conectar al servidor. Revisa tu backend: $e')),
     );
   }
+}
 }

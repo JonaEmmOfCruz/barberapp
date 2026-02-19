@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// ⚠️ ELIMINA O COMENTA TODO ESTE BLOQUE
+
 /*
 userSchema.pre('save', function(next) {
   const user = this;
