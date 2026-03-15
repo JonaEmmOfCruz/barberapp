@@ -1,91 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../main.dart';
 
-// Modelo de datos del usuario
+// Modelo de MongoDB
 class UserModel {
   final String id;
-  final String name;
-  final String? email;
-  final String? profileImageUrl;
-  final String? phone;
-  
-  UserModel({
-    required this.id,
-    required this.name,
-    this.email,
-    this.profileImageUrl,
-    this.phone,
-  });
+  final String nombre;
+  final String? profileImage;
+
+  UserModel({required this.id, required this.nombre, this.profileImage});
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? json['nombre'] ?? 'Usuario',
-      email: json['email'],
-      profileImageUrl: json['profileImage'] ?? json['fotoPerfil'],
-      phone: json['phone'] ?? json['telefono'],
+      id: json['_id'] ?? '',
+      nombre: json['nombre'] ?? 'Usuario',
+      profileImage: json['profileImage'],
     );
-  }
-}
-
-// Servicio de base de datos MongoDB
-class MongoDBService {
-  static final MongoDBService _instance = MongoDBService._internal();
-  factory MongoDBService() => _instance;
-  MongoDBService._internal();
-
-  final String baseUrl = 'http://192.168.100.4:3000/api';
-
-  Future<UserModel> getCurrentUser(String userId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return UserModel.fromJson(data);
-      } else {
-        throw Exception('Error al cargar usuario: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error en MongoDBService: $e');
-      rethrow;
-    }
-  }
-}
-
-// Clase para manejar la sesión del usuario
-class UserSession {
-  static final UserSession _instance = UserSession._internal();
-  factory UserSession() => _instance;
-  UserSession._internal();
-
-  String? _userId;
-  UserModel? _currentUser;
-
-  String? get userId => _userId;
-  UserModel? get currentUser => _currentUser;
-
-  void setUser(String userId, UserModel user) {
-    _userId = userId;
-    _currentUser = user;
-  }
-
-  void clear() {
-    _userId = null;
-    _currentUser = null;
   }
 }
 
 class UserHomeScreen extends StatefulWidget {
   final String userId;
-  
   const UserHomeScreen({super.key, required this.userId});
 
   @override
@@ -94,87 +32,64 @@ class UserHomeScreen extends StatefulWidget {
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
   AppleMapController? _mapController;
-  LatLng? _userLocation;
-  bool _isMapReady = false;
-  bool _isLoadingLocation = true;
+  LatLng? _currentLatLng;
   
-  // Variables para datos del usuario
-  String _userName = "User";
-  String? _userProfileImageUrl;
-  
-  // Control para expandir/contraer la card
+  final String baseUrl = 'http://192.168.100.4:3000'; 
+
+  UserModel? _user;
+  String _realAddress = "Obteniendo ubicación...";
   bool _isExpanded = false;
-  
-  // Variables para las opciones de la card
-  String _selectedServiceType = 'Servicio propio';
-  int _quantity = 1;
-  List<bool> _selectedServices = [false, false, false, false];
-  List<String> _serviceNames = [
-    'Corte de cabello',
-    'Arreglo de barba',
-    'Corte + Barba',
-    'Tinte'
-  ];
-  
+  int _serviceCount = 1;
+  String _selectedType = "propio"; 
+  final Set<String> _selectedServices = {};
+
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _getCurrentLocation();
+    _initData();
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _initData() async {
+    await _fetchUser();
+    await _determinePosition();
+  }
+
+  Future<void> _fetchUser() async {
     try {
-      final mongoService = MongoDBService();
-      final userData = await mongoService.getCurrentUser(widget.userId);
-      
-      UserSession().setUser(widget.userId, userData);
-      
-      if (mounted) {
-        setState(() {
-          _userName = userData.name;
-          _userProfileImageUrl = userData.profileImageUrl;
-        });
+      final response = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}'));
+      if (response.statusCode == 200) {
+        setState(() => _user = UserModel.fromJson(json.decode(response.body)));
       }
     } catch (e) {
-      print('Error cargando datos de usuario: $e');
+      debugPrint("Error: $e");
     }
   }
 
-  Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isLoadingLocation = true;
-    });
-    
+  Future<void> _determinePosition() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      _currentLatLng = LatLng(position.latitude, position.longitude);
       
-      if (mounted) {
-        setState(() {
-          _userLocation = LatLng(position.latitude, position.longitude);
-          _isLoadingLocation = false;
-        });
-      }
+      List<Placemark> p = await placemarkFromCoordinates(position.latitude, position.longitude);
+      setState(() {
+        _realAddress = "${p[0].street}, ${p[0].locality}, ${p[0].administrativeArea}";
+      });
+      
+      // Llamamos a centrar con el nuevo zoom
+      _centerMapWithZoom();
     } catch (e) {
-      print('Error obteniendo ubicación: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingLocation = false;
-          _userLocation = const LatLng(20.7219, -103.3911);
-        });
-      }
+      setState(() => _realAddress = "C. Calle #1, Zapopan, Jalisco");
     }
   }
 
-  void _centerMapOnUser() {
-    if (_mapController != null && _userLocation != null) {
+  // MÉTODO PARA CENTRAR CON ZOOM EXTRA
+  void _centerMapWithZoom() {
+    if (_mapController != null && _currentLatLng != null) {
       _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(
-            target: _userLocation!,
-            zoom: 15,
+            target: _currentLatLng!,
+            zoom: 18.0, // Ajusta este valor (15 es normal, 18 es más cerca)
           ),
         ),
       );
@@ -186,477 +101,222 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // MAPA DE FONDO
-          if (_userLocation != null)
-            AppleMap(
-              key: const ValueKey('apple_map'),
-              initialCameraPosition: CameraPosition(
-                target: _userLocation!,
-                zoom: 14,
+          _currentLatLng == null 
+            ? const Center(child: CircularProgressIndicator())
+            : AppleMap(
+                initialCameraPosition: CameraPosition(target: _currentLatLng!, zoom: 15),
+                onMapCreated: (c) => _mapController = c,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
               ),
-              onMapCreated: (controller) {
-                _mapController = controller;
-                setState(() => _isMapReady = true);
-              },
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              compassEnabled: true,
-            )
-          else
-            Container(
-              color: Colors.grey[300],
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Cargando mapa...'),
-                  ],
-                ),
-              ),
-            ),
-          
-          // CONTENIDO SOBRE EL MAPA
+
+          // HEADER
           SafeArea(
-            child: Column(
-              children: [
-                // Header con saludo y avatar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                children: [
+                  _buildAvatar(),
+                  const SizedBox(width: 15),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Bienvenido',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            _userName,
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Botón de perfil
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, '/profile');
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(Icons.person, color: Colors.blue),
-                        ),
-                      ),
+                      Text(_user?.nombre ?? "User", 
+                        style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                      const Text("Selecciona el tipo de servicio", 
+                        style: TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.w600)),
                     ],
                   ),
-                ),
-                
-                // Título
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Selecciona el tipo de servicio',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const Spacer(),
-                
-                // CARD QUE SE EXPANDE - CORREGIDA CON ALTURA MÁXIMA
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  constraints: BoxConstraints(
-                    maxHeight: _isExpanded ? 500 : 56, // Altura máxima cuando está expandido
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                    child: _isExpanded ? _buildExpandedCard() : _buildCollapsedCard(),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+
+          // BOTONES FLOTANTES
+          Positioned(
+            right: 20,
+            top: 130,
+            child: Column(
+              children: [
+                _iconBtn(Icons.person_outline, isCircle: false),
+                const SizedBox(height: 12),
+                // Botón de ubicación con zoom mejorado
+                _iconBtn(Icons.my_location, isCircle: true, onTap: _determinePosition),
               ],
             ),
           ),
-          
-          // Botón para centrar mapa
-          if (_isMapReady && _userLocation != null && !_isExpanded)
-            Positioned(
-              bottom: 140,
-              right: 24,
-              child: GestureDetector(
-                onTap: _centerMapOnUser,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.my_location, color: Colors.blue),
-                ),
+
+          // CARD DINÁMICA
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              margin: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.98),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
               ),
+              child: _isExpanded ? _buildExpandedBody() : _buildInitialBody(),
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _getProfileImage() {
-    if (_userProfileImageUrl != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          _userProfileImageUrl!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Icon(Icons.person, color: Colors.blue),
+  Widget _buildInitialBody() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.location_on, color: Colors.blue)),
+            const SizedBox(width: 15),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("Tu Ubicación", style: TextStyle(color: Colors.grey, fontSize: 11)),
+              Text(_realAddress, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ])),
+          ],
         ),
-      );
-    }
-    return Icon(Icons.person, color: Colors.blue);
-  }
-  
-  // Card colapsada (solo el botón)
-  Widget _buildCollapsedCard() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: () {
-          setState(() {
-            _isExpanded = true;
-          });
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 0,
-        ),
-        child: const Text(
-          'SOLICITAR SERVICIO',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+        const SizedBox(height: 20),
+        _blueBtn("SOLICITAR SERVICIO", () => setState(() => _isExpanded = true)),
+      ],
     );
   }
-  
-  // Card expandida con SingleChildScrollView para que sea desplazable
-  Widget _buildExpandedCard() {
+
+  Widget _buildExpandedBody() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título de la card y botón cerrar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Selecciona el tipo de servicio',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 20),
-                onPressed: () {
-                  setState(() {
-                    _isExpanded = false;
-                  });
-                },
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
-          ),
-          
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text("Tipo de servicio:", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            IconButton(icon: const Icon(Icons.keyboard_arrow_down, color: Colors.blue), onPressed: () => setState(() => _isExpanded = false)),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            _typeCard("Servicio propio", Icons.person, _selectedType == "propio", () => setState(() => _selectedType = "propio")),
+            const SizedBox(width: 12),
+            _typeCard("Servicio a segundo", Icons.group_add, _selectedType == "segundo", () => setState(() => _selectedType = "segundo")),
+          ]),
           const SizedBox(height: 20),
-          
-          // Tipo de servicio
-          const Text(
-            'Tipo de servicio:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _buildServiceTypeOption(
-                  title: 'Servicio propio',
-                  isSelected: _selectedServiceType == 'Servicio propio',
-                  onTap: () => setState(() => _selectedServiceType = 'Servicio propio'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildServiceTypeOption(
-                  title: 'Servicio a segundo',
-                  isSelected: _selectedServiceType == 'Servicio a segundo',
-                  onTap: () => setState(() => _selectedServiceType = 'Servicio a segundo'),
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Servicio a solicitar
-          const Text(
-            'Servicio a solicitar:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Zapopan',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.blue,
-            ),
-          ),
+          const Text("Servicios a solicitar:", style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          
-          // Lista de servicios
-          ...List.generate(4, (index) {
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedServices[index] = !_selectedServices[index];
-                });
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _selectedServices[index] 
-                        ? Colors.blue 
-                        : Colors.grey.shade300,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _selectedServices[index] 
-                          ? Icons.check_box 
-                          : Icons.check_box_outline_blank,
-                      color: _selectedServices[index] ? Colors.blue : Colors.grey,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _serviceNames[index],
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            );
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _serviceChip("Corte", Icons.content_cut),
+            _serviceChip("Barba", Icons.face),
+            _serviceChip("Tinte", Icons.color_lens),
+            _serviceChip("Combo", Icons.auto_awesome),
+            _serviceChip("Cejas", Icons.remove_red_eye_outlined),
+          ]),
+          const SizedBox(height: 20),
+          const Text("Cantidad de servicios:", style: TextStyle(fontWeight: FontWeight.bold)),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _qtyBtn(Icons.remove, () => setState(() => _serviceCount > 1 ? _serviceCount-- : null)),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 30), child: Text("$_serviceCount", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))),
+            _qtyBtn(Icons.add, () => setState(() => _serviceCount++)),
+          ]),
+          const SizedBox(height: 20),
+          const Text("Ubicación:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(_realAddress, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 20),
+          _blueBtn("CONFIRMAR SERVICIO", () {
+            print("Servicios: $_selectedServices");
           }),
-          
-          const SizedBox(height: 20),
-          
-          // Cantidad de servicios
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Cantidad de servicios:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove, size: 18),
-                      onPressed: () {
-                        if (_quantity > 1) {
-                          setState(() => _quantity--);
-                        }
-                      },
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        '$_quantity',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add, size: 18),
-                      onPressed: () {
-                        setState(() => _quantity++);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Ubicación
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.location_on, color: Colors.blue, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Ubicación:',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      Text(
-                        _isLoadingLocation 
-                            ? 'Obteniendo ubicación...' 
-                            : 'C. Calle #1, Zapopan, Jalisco',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // Botón confirmar
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                // Aquí va la lógica para confirmar el servicio
-                setState(() {
-                  _isExpanded = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Servicio confirmado'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('CONFIRMAR SERVICIO'),
-            ),
-          ),
         ],
       ),
     );
   }
-  
-  Widget _buildServiceTypeOption({
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
+
+  // --- COMPONENTES ---
+
+  Widget _typeCard(String text, IconData icon, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          decoration: BoxDecoration(
+            color: selected ? Colors.blue : Colors.blue[50],
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(children: [
+            CircleAvatar(
+              radius: 14, 
+              backgroundColor: Colors.white, 
+              child: Icon(icon, size: 16, color: selected ? Colors.blue : Colors.blueAccent)
+            ),
+            const SizedBox(height: 10),
+            Text(text, style: TextStyle(color: selected ? Colors.white : Colors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _serviceChip(String text, IconData icon) {
+    bool isSelected = _selectedServices.contains(text);
+    return GestureDetector(
+      onTap: () => setState(() => isSelected ? _selectedServices.remove(text) : _selectedServices.add(text)),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue : Colors.blue[50],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          CircleAvatar(
+            radius: 8, 
+            backgroundColor: Colors.white, 
+            child: Icon(icon, size: 10, color: isSelected ? Colors.blue : Colors.blueAccent)
+          ),
+          const SizedBox(width: 8),
+          Text(text, style: TextStyle(color: isSelected ? Colors.white : Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    return Container(
+      width: 65, height: 65,
+      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(15)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: _user?.profileImage != null
+            ? Image.network('$baseUrl${_user!.profileImage}', fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.blue))
+            : const Icon(Icons.person, color: Colors.blue),
+      ),
+    );
+  }
+
+  Widget _qtyBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: Colors.blue)),
+    );
+  }
+
+  Widget _blueBtn(String text, VoidCallback onTap) {
+    return SizedBox(width: double.infinity, height: 55, child: ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    ));
+  }
+
+  Widget _iconBtn(IconData icon, {bool isCircle = false, VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey.shade300,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            color: isSelected ? Colors.blue : Colors.grey.shade600,
-            fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-          ),
-        ),
+        width: 46, height: 46,
+        decoration: BoxDecoration(color: Colors.white, shape: isCircle ? BoxShape.circle : BoxShape.rectangle, borderRadius: isCircle ? null : BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)]),
+        child: Icon(icon, color: Colors.blue, size: 22),
       ),
     );
   }
