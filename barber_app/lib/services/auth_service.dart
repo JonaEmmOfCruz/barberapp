@@ -4,7 +4,7 @@ import '../main.dart'; // Para AppColors si es necesario
 
 class AuthService {
   // Usa la misma IP que en ApiService
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'http://192.168.100.4:3000/api';
   
   // Login de usuario
   static Future<Map<String, dynamic>> loginUser({
@@ -32,21 +32,31 @@ class AuthService {
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 200) {
+        // Obtener el usuario de la respuesta
+        final userData = data['user'] ?? data['barber'] ?? data['data'] ?? {};
+        
+        // Extraer el ID del usuario (diferentes formatos posibles)
+        String userId = '';
+        if (userData is Map) {
+          userId = userData['_id'] ?? userData['id'] ?? userData['uid'] ?? '';
+        }
+        
         // Guardar token si existe
         if (data['token'] != null) {
-          // Aquí puedes guardar el token en SharedPreferences si lo deseas
           print('Token recibido: ${data['token']}');
         }
         
         return {
           'success': true,
+          'userId': userId, // ← IMPORTANTE: Agregamos el userId
           'message': data['message'] ?? 'Login exitoso',
-          'user': data['user'] ?? data['barber'] ?? data['data'],
+          'user': userData,
           'token': data['token'],
         };
       } else {
         return {
           'success': false,
+          'userId': null,
           'message': data['message'] ?? 'Error en el login',
         };
       }
@@ -54,6 +64,7 @@ class AuthService {
       print('Error de conexión: $e');
       return {
         'success': false,
+        'userId': null,
         'message': 'Error de conexión: $e',
       };
     }

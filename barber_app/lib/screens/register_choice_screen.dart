@@ -28,99 +28,58 @@ class RegisterChoiceScreen extends StatelessWidget {
               
               // Título
               Text(
-                '¿Cómo deseas registrarte?',
+                'Registrate como usuario',
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w500,
                   letterSpacing: 1.5,
                 ),
-              ),
-              
-              const SizedBox(height: 8),
-              
-              // Línea decorativa
-              Container(
-                width: 60,
-                height: 1,
-                color: AppColors.primary.withOpacity(0.3),
               ),
               
               const SizedBox(height: 16),
               
               // Subtítulo
               Text(
-                'Selecciona el tipo de cuenta que mejor se adapte a ti',
+                'Selecciona el tipo de cuenta para disfrutar de nuestros servicios',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary.withOpacity(0.8),
-                  fontWeight: FontWeight.w300,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
               
               const SizedBox(height: 60),
               
-              // Opción Usuario
-              _buildOptionCard(
-                context,
-                icon: Icons.person_outline,
-                title: 'Usuario',
-                subtitle: 'Solicitar servicios',
-                color: AppColors.primary,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const UserRegisterScreen()),
-                  );
-                },
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Opción Barbero
-              _buildOptionCard(
-                context,
-                icon: Icons.content_cut,
-                title: 'Barbero',
-                subtitle: 'Ofrecer servicios',
-                color: AppColors.secondary,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BarberRegisterScreen()),
-                  );
-                },
-              ),
+              // Opción Usuario - Rediseñada según la imagen
+              _buildUserOption(context),
               
               const Spacer(),
               
-              // Información
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  border: Border.all(
-                    color: AppColors.primary.withOpacity(0.1),
-                    width: 1,
+              // Botón REGISTRARSE
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UserRegisterScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: AppColors.primary,
-                      size: 20,
+                  child: const Text(
+                    'REGISTRARSE',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Los barberos pasan por un proceso de verificación antes de poder ofrecer servicios.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary.withOpacity(0.8),
-                          fontWeight: FontWeight.w300,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               
@@ -132,76 +91,95 @@ class RegisterChoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOptionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: color.withOpacity(0.1),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: color.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title.toUpperCase(),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary.withOpacity(0.8),
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: color.withOpacity(0.5),
-              size: 18,
-            ),
-          ],
+  Widget _buildUserOption(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
         ),
       ),
+      child: Column(
+        children: [
+          // Icono de usuario en cuadro gris
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.person_outline,
+              color: AppColors.primary,
+              size: 40,
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Título "USUARIO"
+          Text(
+            'USUARIO',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
+              fontSize: 22,
+            ),
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Lista de beneficios
+          _buildBenefitItem(
+            context,
+            'Solicitar servicios a domicilio',
+          ),
+          
+          const SizedBox(height: 12),
+          
+          _buildBenefitItem(
+            context,
+            'Precios accesibles',
+          ),
+          
+          const SizedBox(height: 12),
+          
+          _buildBenefitItem(
+            context,
+            'Cortes al horario en que lo necesites',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitItem(BuildContext context, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.check_circle_outline,
+          color: AppColors.primary,
+          size: 20,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w400,
+              fontSize: 15,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

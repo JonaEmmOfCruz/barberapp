@@ -2,80 +2,43 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  nombre: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  correo: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  telefono: {
-    type: String,
-    required: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  profileImage: {
-    type: String,
-    default: null
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  }
-}, {
-  timestamps: true
-});
+  nombre: { type: String, required: true, trim: true },
+  correo: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  telefono: { type: String, required: true },
+  password: { type: String, required: true },
+  profileImage: { type: String, default: null },
+  isActive: { type: Boolean, default: true }
+}, { timestamps: true });
 
-// ✅ MIDDLEWARE PARA ENCRIPTAR CONTRASEÑA (VERSIÓN CORREGIDA)
-userSchema.pre('save', async function(next) {
+// Middleware para encriptar - VERSIÓN CORREGIDA (SIN next)
+userSchema.pre('save', async function() {
   try {
-    // 'this' se refiere al documento que se está guardando
-    const user = this;
-    
-    console.log('Middleware pre-save ejecutándose para:', user.correo);
-    console.log('   ¿Contraseña modificada?', user.isModified('password'));
-    
-    // Solo encriptar si la contraseña ha sido modificada (o es nueva)
-    if (!user.isModified('password')) {
-      console.log('   Contraseña no modificada, saltando encriptación');
-      return next();
+    // Si la contraseña no ha sido modificada, salir
+    if (!this.isModified('password')) {
+      return;
     }
     
-    // Verificar si la contraseña ya está encriptada (por si acaso)
-    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
-      console.log('   Contraseña ya parece estar encriptada, saltando');
-      return next();
-    }
-    
-    console.log('   Encriptando contraseña...');
-    
-    // Generar salt y encriptar
+    console.log('🔐 Encriptando contraseña para:', this.correo);
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(user.password, salt);
+    this.password = await bcrypt.hash(this.password, salt);
+    console.log('✅ Contraseña encriptada');
     
-    // Asignar la contraseña encriptada
-    user.password = hashedPassword;
-    
-    console.log('Contraseña encriptada exitosamente');
-    next();
-    
+    // No necesitas llamar next() - Mongoose espera una promesa
   } catch (error) {
-    console.error('Error encriptando contraseña:', error);
-    next(error);
+    console.error('❌ Error encriptando:', error);
+    // Lanza el error para que Mongoose lo maneje
+    throw error;
   }
 });
 
 // Método para comparar contraseñas
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    console.error('Error comparando contraseñas:', error);
+    return false;
+  }
 };
 
 module.exports = mongoose.model('User', userSchema);

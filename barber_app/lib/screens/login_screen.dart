@@ -50,6 +50,9 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pop(context); // Cerrar diálogo de carga
       
       if (result['success']) {
+        // Obtener el userId del resultado
+        String userId = result['userId'] ?? ''; // Asegúrate que AuthService devuelva el userId
+        
         // Navegar a la pantalla correspondiente
         if (_isBarber) {
           // Navigator.pushReplacement(
@@ -59,7 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const UserHomeScreen()),
+            MaterialPageRoute(
+              builder: (_) => UserHomeScreen(userId: userId), // Pasar el userId
+            ),
           );
         }
       } else {
