@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:barber_app/screens/user_perfil_screen.dart';
 
 // Modelo de MongoDB
 class UserModel {
@@ -33,14 +34,14 @@ class UserHomeScreen extends StatefulWidget {
 class _UserHomeScreenState extends State<UserHomeScreen> {
   AppleMapController? _mapController;
   LatLng? _currentLatLng;
-  
-  final String baseUrl = 'http://192.168.100.4:3000'; 
+
+  final String baseUrl = 'http://192.168.100.4:3000';
 
   UserModel? _user;
   String _realAddress = "Obteniendo ubicación...";
   bool _isExpanded = false;
   int _serviceCount = 1;
-  String _selectedType = "propio"; 
+  String _selectedType = "propio";
   final Set<String> _selectedServices = {};
 
   @override
@@ -56,7 +57,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Future<void> _fetchUser() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/api/users/${widget.userId}'));
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/users/${widget.userId}'),
+      );
       if (response.statusCode == 200) {
         setState(() => _user = UserModel.fromJson(json.decode(response.body)));
       }
@@ -67,14 +70,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Future<void> _determinePosition() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       _currentLatLng = LatLng(position.latitude, position.longitude);
-      
-      List<Placemark> p = await placemarkFromCoordinates(position.latitude, position.longitude);
+
+      List<Placemark> p = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
       setState(() {
-        _realAddress = "${p[0].street}, ${p[0].locality}, ${p[0].administrativeArea}";
+        _realAddress =
+            "${p[0].street}, ${p[0].locality}, ${p[0].administrativeArea}";
       });
-      
+
       // Llamamos a centrar con el nuevo zoom
       _centerMapWithZoom();
     } catch (e) {
@@ -101,14 +110,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          _currentLatLng == null 
-            ? const Center(child: CircularProgressIndicator())
-            : AppleMap(
-                initialCameraPosition: CameraPosition(target: _currentLatLng!, zoom: 15),
-                onMapCreated: (c) => _mapController = c,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-              ),
+          _currentLatLng == null
+              ? const Center(child: CircularProgressIndicator())
+              : AppleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: _currentLatLng!,
+                    zoom: 15,
+                  ),
+                  onMapCreated: (c) => _mapController = c,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                ),
 
           // HEADER
           SafeArea(
@@ -122,10 +134,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_user?.nombre ?? "User", 
-                        style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                      const Text("Selecciona el tipo de servicio", 
-                        style: TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(
+                        _user?.nombre ?? "User",
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      const Text(
+                        "Selecciona el tipo de servicio",
+                        style: TextStyle(
+                          color: Colors.blueAccent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -139,10 +163,25 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             top: 130,
             child: Column(
               children: [
-                _iconBtn(Icons.person_outline, isCircle: false),
+                _iconBtn(
+                  Icons.person_outline,
+                  isCircle: false,
+                  onTap: () {
+                    // Eliminamos 'const' de aquí y agregamos el ';' al final
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserPerfilScreen(),
+                      ),
+                    ); // <--- Este punto y coma es vital
+                  },
+                ),
                 const SizedBox(height: 12),
-                // Botón de ubicación con zoom mejorado
-                _iconBtn(Icons.my_location, isCircle: true, onTap: _determinePosition),
+                _iconBtn(
+                  Icons.my_location,
+                  isCircle: true,
+                  onTap: _determinePosition,
+                ),
               ],
             ),
           ),
@@ -157,7 +196,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.98),
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 15),
+                ],
               ),
               child: _isExpanded ? _buildExpandedBody() : _buildInitialBody(),
             ),
@@ -173,16 +214,41 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       children: [
         Row(
           children: [
-            Container(width: 50, height: 50, decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.location_on, color: Colors.blue)),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.location_on, color: Colors.blue),
+            ),
             const SizedBox(width: 15),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text("Tu Ubicación", style: TextStyle(color: Colors.grey, fontSize: 11)),
-              Text(_realAddress, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            ])),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Tu Ubicación",
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                  Text(
+                    _realAddress,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 20),
-        _blueBtn("SOLICITAR SERVICIO", () => setState(() => _isExpanded = true)),
+        _blueBtn(
+          "SOLICITAR SERVICIO",
+          () => setState(() => _isExpanded = true),
+        ),
       ],
     );
   }
@@ -193,36 +259,89 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text("Tipo de servicio:", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-            IconButton(icon: const Icon(Icons.keyboard_arrow_down, color: Colors.blue), onPressed: () => setState(() => _isExpanded = false)),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Tipo de servicio:",
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down, color: Colors.blue),
+                onPressed: () => setState(() => _isExpanded = false),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          Row(children: [
-            _typeCard("Servicio propio", Icons.person, _selectedType == "propio", () => setState(() => _selectedType = "propio")),
-            const SizedBox(width: 12),
-            _typeCard("Servicio a segundo", Icons.group_add, _selectedType == "segundo", () => setState(() => _selectedType = "segundo")),
-          ]),
+          Row(
+            children: [
+              _typeCard(
+                "Servicio propio",
+                Icons.person,
+                _selectedType == "propio",
+                () => setState(() => _selectedType = "propio"),
+              ),
+              const SizedBox(width: 12),
+              _typeCard(
+                "Servicio a segundo",
+                Icons.group_add,
+                _selectedType == "segundo",
+                () => setState(() => _selectedType = "segundo"),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
-          const Text("Servicios a solicitar:", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            "Servicios a solicitar:",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            _serviceChip("Corte", Icons.content_cut),
-            _serviceChip("Barba", Icons.face),
-            _serviceChip("Tinte", Icons.color_lens),
-            _serviceChip("Combo", Icons.auto_awesome),
-            _serviceChip("Cejas", Icons.remove_red_eye_outlined),
-          ]),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _serviceChip("Corte", Icons.content_cut),
+              _serviceChip("Barba", Icons.face),
+              _serviceChip("Tinte", Icons.color_lens),
+              _serviceChip("Combo", Icons.auto_awesome),
+              _serviceChip("Cejas", Icons.remove_red_eye_outlined),
+            ],
+          ),
           const SizedBox(height: 20),
-          const Text("Cantidad de servicios:", style: TextStyle(fontWeight: FontWeight.bold)),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _qtyBtn(Icons.remove, () => setState(() => _serviceCount > 1 ? _serviceCount-- : null)),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 30), child: Text("$_serviceCount", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))),
-            _qtyBtn(Icons.add, () => setState(() => _serviceCount++)),
-          ]),
+          const Text(
+            "Cantidad de servicios:",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _qtyBtn(
+                Icons.remove,
+                () =>
+                    setState(() => _serviceCount > 1 ? _serviceCount-- : null),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                child: Text(
+                  "$_serviceCount",
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              _qtyBtn(Icons.add, () => setState(() => _serviceCount++)),
+            ],
+          ),
           const SizedBox(height: 20),
-          const Text("Ubicación:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          Text(_realAddress, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          const Text(
+            "Ubicación:",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          Text(
+            _realAddress,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
           const SizedBox(height: 20),
           _blueBtn("CONFIRMAR SERVICIO", () {
             print("Servicios: $_selectedServices");
@@ -234,7 +353,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   // --- COMPONENTES ---
 
-  Widget _typeCard(String text, IconData icon, bool selected, VoidCallback onTap) {
+  Widget _typeCard(
+    String text,
+    IconData icon,
+    bool selected,
+    VoidCallback onTap,
+  ) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -244,15 +368,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             color: selected ? Colors.blue : Colors.blue[50],
             borderRadius: BorderRadius.circular(18),
           ),
-          child: Column(children: [
-            CircleAvatar(
-              radius: 14, 
-              backgroundColor: Colors.white, 
-              child: Icon(icon, size: 16, color: selected ? Colors.blue : Colors.blueAccent)
-            ),
-            const SizedBox(height: 10),
-            Text(text, style: TextStyle(color: selected ? Colors.white : Colors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
-          ]),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: Colors.white,
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? Colors.blue : Colors.blueAccent,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                text,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.blue,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -261,7 +398,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Widget _serviceChip(String text, IconData icon) {
     bool isSelected = _selectedServices.contains(text);
     return GestureDetector(
-      onTap: () => setState(() => isSelected ? _selectedServices.remove(text) : _selectedServices.add(text)),
+      onTap: () => setState(
+        () => isSelected
+            ? _selectedServices.remove(text)
+            : _selectedServices.add(text),
+      ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -269,27 +410,50 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           color: isSelected ? Colors.blue : Colors.blue[50],
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          CircleAvatar(
-            radius: 8, 
-            backgroundColor: Colors.white, 
-            child: Icon(icon, size: 10, color: isSelected ? Colors.blue : Colors.blueAccent)
-          ),
-          const SizedBox(width: 8),
-          Text(text, style: TextStyle(color: isSelected ? Colors.white : Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
-        ]),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 8,
+              backgroundColor: Colors.white,
+              child: Icon(
+                icon,
+                size: 10,
+                color: isSelected ? Colors.blue : Colors.blueAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.blue,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildAvatar() {
     return Container(
-      width: 65, height: 65,
-      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(15)),
+      width: 65,
+      height: 65,
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(15),
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
         child: _user?.profileImage != null
-            ? Image.network('$baseUrl${_user!.profileImage}', fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.blue))
+            ? Image.network(
+                '$baseUrl${_user!.profileImage}',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.person, color: Colors.blue),
+              )
             : const Icon(Icons.person, color: Colors.blue),
       ),
     );
@@ -298,24 +462,52 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Widget _qtyBtn(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: Colors.blue)),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.blue[50],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: Colors.blue),
+      ),
     );
   }
 
   Widget _blueBtn(String text, VoidCallback onTap) {
-    return SizedBox(width: double.infinity, height: 55, child: ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-    ));
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _iconBtn(IconData icon, {bool isCircle = false, VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 46, height: 46,
-        decoration: BoxDecoration(color: Colors.white, shape: isCircle ? BoxShape.circle : BoxShape.rectangle, borderRadius: isCircle ? null : BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)]),
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+          borderRadius: isCircle ? null : BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
+        ),
         child: Icon(icon, color: Colors.blue, size: 22),
       ),
     );
