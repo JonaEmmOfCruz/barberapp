@@ -2,13 +2,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
 
 class ApiService {
   // PARA iOS SIMULATOR: usa localhost
-  static const String baseUrl = 'http://192.168.100.4:3000/api';
-  
-  // PARA EMULADOR ANDROID: usa 10.0.2.2
-  // static const String baseUrl = 'http://10.0.2.2:3000/api';
+  static const String baseUrl = AppConfig.apiUrl;
   
   // Registro de usuario
   static Future<Map<String, dynamic>> registerUser({

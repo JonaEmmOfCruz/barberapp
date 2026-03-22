@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // Para AppColors si es necesario
+import '../config/app_config.dart';
 
 class AuthService {
   // Usa la misma IP que en ApiService
-  static const String baseUrl = 'http://192.168.100.4:3000/api';
+  static const String baseUrl = AppConfig.apiUrl;
   
   // Login de usuario
   static Future<Map<String, dynamic>> loginUser({

@@ -5,6 +5,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:barber_app/screens/user_perfil_screen.dart';
+import 'package:barber_app/config/app_config.dart';
 
 // Modelo de MongoDB
 class UserModel {
@@ -35,7 +36,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   AppleMapController? _mapController;
   LatLng? _currentLatLng;
 
-  final String baseUrl = 'http://192.168.100.4:3000';
+  final String baseUrl = AppConfig.baseUrl;
 
   UserModel? _user;
   String _realAddress = "Obteniendo ubicación...";
@@ -309,9 +310,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            "Cantidad de servicios:",
+            "Cantidad de personas:",
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 5),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -333,7 +335,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               _qtyBtn(Icons.add, () => setState(() => _serviceCount++)),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
           const Text(
             "Ubicación:",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
