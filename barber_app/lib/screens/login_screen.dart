@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import 'user_home_screen.dart';
-// import 'barber_home_screen.dart'; // Cuando lo crees
+import 'barber_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    // Validar formulario
     if (!_formKey.currentState!.validate()) return;
     
     setState(() => _isLoading = true);
@@ -40,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
     
+    // Llamar al servicio de login
     final result = await AuthService.loginUser(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -51,29 +53,38 @@ class _LoginScreenState extends State<LoginScreen> {
       
       if (result['success']) {
         // Obtener el userId del resultado
-        String userId = result['userId'] ?? ''; // Asegúrate que AuthService devuelva el userId
+        String userId = result['userId'] ?? '';
         
-        // Navegar a la pantalla correspondiente
+        print('Login exitoso - UserId: $userId, isBarber: $_isBarber');
+        
+        // Navegar a la pantalla correspondiente según el tipo de usuario
         if (_isBarber) {
-          // Navigator.pushReplacement(
-          //   context,
-          //   MaterialPageRoute(builder: (_) => const BarberHomeScreen()),
-          // );
-        } else {
+          // Redirigir a pantalla de barbero
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => UserHomeScreen(userId: userId), // Pasar el userId
+              builder: (_) => BarberHomeScreen(barberId: userId),
+            ),
+          );
+        } else {
+          // Redirigir a pantalla de usuario normal
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => UserHomeScreen(userId: userId),
             ),
           );
         }
       } else {
-        // Mostrar error
+        // Mostrar mensaje de error
+        String errorMessage = result['message'] ?? 'Error al iniciar sesión';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -129,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 const SizedBox(height: 48),
                 
-                // Selector de tipo
+                // Selector de tipo (Usuario / Barbero)
                 Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
@@ -202,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // Email
+                // Campo de Email
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
@@ -243,6 +254,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Ingresa tu correo';
                       }
+                      // Validar formato de email
+                      final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+                      if (!emailRegex.hasMatch(value)) {
+                        return 'Ingresa un correo válido';
+                      }
                       return null;
                     },
                   ),
@@ -250,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Contraseña
+                // Campo de Contraseña
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
@@ -303,6 +319,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Ingresa tu contraseña';
+                      }
+                      if (value.length < 6) {
+                        return 'La contraseña debe tener al menos 6 caracteres';
                       }
                       return null;
                     },

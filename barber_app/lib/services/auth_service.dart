@@ -1,13 +1,13 @@
+// services/auth_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../main.dart'; // Para AppColors si es necesario
 import '../config/app_config.dart';
 
 class AuthService {
   // Usa la misma IP que en ApiService
   static const String baseUrl = AppConfig.apiUrl;
   
-  // Login de usuario
+  // Login unificado - funciona para usuarios y barberos
   static Future<Map<String, dynamic>> loginUser({
     required String email,
     required String password,
@@ -16,14 +16,14 @@ class AuthService {
     try {
       print('Intentando login: $email, isBarber: $isBarber');
       
-      final endpoint = isBarber ? 'auth/login/barber' : 'auth/login/user';
-      
+      // Usar el endpoint unificado /auth/login
       final response = await http.post(
-        Uri.parse('$baseUrl/$endpoint'),
+        Uri.parse('$baseUrl/auth/login'), // ← Endpoint unificado
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'correo': email,
+          'email': email,        // ← Cambiar de 'correo' a 'email'
           'password': password,
+          'isBarber': isBarber,  // ← Agregar el parámetro isBarber
         }),
       );
       
@@ -32,27 +32,17 @@ class AuthService {
       
       final data = jsonDecode(response.body);
       
-      if (response.statusCode == 200) {
-        // Obtener el usuario de la respuesta
-        final userData = data['user'] ?? data['barber'] ?? data['data'] ?? {};
+      if (response.statusCode == 200 && data['success'] == true) {
+        // Obtener el userId de la respuesta
+        String userId = data['userId'] ?? '';
         
-        // Extraer el ID del usuario (diferentes formatos posibles)
-        String userId = '';
-        if (userData is Map) {
-          userId = userData['_id'] ?? userData['id'] ?? userData['uid'] ?? '';
-        }
-        
-        // Guardar token si existe
-        if (data['token'] != null) {
-          print('Token recibido: ${data['token']}');
-        }
+        print('✅ Login exitoso, userId: $userId');
         
         return {
           'success': true,
-          'userId': userId, // ← IMPORTANTE: Agregamos el userId
+          'userId': userId,
           'message': data['message'] ?? 'Login exitoso',
-          'user': userData,
-          'token': data['token'],
+          'user': data['user'],
         };
       } else {
         return {
@@ -62,13 +52,37 @@ class AuthService {
         };
       }
     } catch (e) {
-      print('Error de conexión: $e');
+      print('❌ Error de conexión: $e');
       return {
         'success': false,
         'userId': null,
         'message': 'Error de conexión: $e',
       };
     }
+  }
+  
+  // Login solo para usuarios (mantener por compatibilidad si es necesario)
+  static Future<Map<String, dynamic>> loginUserOnly({
+    required String email,
+    required String password,
+  }) async {
+    return loginUser(
+      email: email,
+      password: password,
+      isBarber: false,
+    );
+  }
+  
+  // Login solo para barberos (mantener por compatibilidad si es necesario)
+  static Future<Map<String, dynamic>> loginBarberOnly({
+    required String email,
+    required String password,
+  }) async {
+    return loginUser(
+      email: email,
+      password: password,
+      isBarber: true,
+    );
   }
   
   // Verificar si el usuario está autenticado

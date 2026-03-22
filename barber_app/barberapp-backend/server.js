@@ -1,3 +1,4 @@
+// server.js - VERSIÓN CORREGIDA
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -52,22 +53,10 @@ const getMongoConfig = () => {
             user: process.env.USER3_NAME
         };
     }
-
-    if (activeUser === '1') {
-        return {
-            uri: process.env.USER1_MONGO_URI,
-            user: process.env.USER1_NAME
-        };
-    } else {
-        return {
-            uri: process.env.USER2_MONGO_URI,
-            user: process.env.USER2_NAME
-        };
-    }
 };
 
 /* 
-    Conexion con MongoDB - VERSIÓN CORREGIDA
+    Conexion con MongoDB
 */
 const connectDB = async () => {
     try {
@@ -81,19 +70,19 @@ const connectDB = async () => {
         
         await mongoose.connect(dbConfig.uri);
         
-        console.log('Conectado exitosamente a MongoDB Atlas');
-        console.log(`Base de datos: ${mongoose.connection.name}`);
+        console.log('✅ Conectado exitosamente a MongoDB Atlas');
+        console.log(`📀 Base de datos: ${mongoose.connection.name}`);
         
         mongoose.connection.on('error', err => {
-            console.error('Error en la conexión de MongoDB:', err);
+            console.error('❌ Error en la conexión de MongoDB:', err);
         });
         
         mongoose.connection.on('disconnected', () => {
-            console.log('Desconectado de MongoDB');
+            console.log('⚠️ Desconectado de MongoDB');
         });
         
     } catch (error) {
-        console.error('Error al conectar a MongoDB Atlas:');
+        console.error('❌ Error al conectar a MongoDB Atlas:');
         console.error('   Nombre:', error.name);
         console.error('   Mensaje:', error.message);
         process.exit(1);
@@ -132,6 +121,7 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en el puerto: ${PORT}`);
-    console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🚀 Servidor corriendo en el puerto: ${PORT}`);
+    console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 URL: http://localhost:${PORT}`);
 });
