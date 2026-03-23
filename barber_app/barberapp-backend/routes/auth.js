@@ -1,11 +1,12 @@
-// routes/auth.js - VERSIÓN CORREGIDA
+// routes/auth.js - VERSIÓN CORREGIDA CON SOPORTE PARA IDENTIFIER
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
+const { ObjectId } = require('mongodb');
 
-// ✅ REGISTRO DE USUARIO NORMAL
+// ✅ REGISTRO DE USUARIO NORMAL (sin cambios)
 router.post('/register/user', async (req, res) => {
   try {
     console.log('📝 Intento de registro de usuario: ', req.body);
@@ -104,17 +105,21 @@ router.post('/register/user', async (req, res) => {
   }
 });
 
-// 🔐 LOGIN UNIFICADO - VERIFICA EN USERS Y BARBEROS
+// 🔐 LOGIN UNIFICADO - VERIFICA EN USERS Y BARBEROS (VERSIÓN MEJORADA)
 router.post('/login', async (req, res) => {
   try {
     console.log('🔑 Intento de login:', req.body);
 
-    const { email, password, isBarber } = req.body;
+    // Aceptar tanto 'identifier' como 'email' para compatibilidad
+    const { identifier, email, password, isBarber } = req.body;
+    
+    // Usar identifier si existe, si no usar email
+    const loginIdentifier = identifier || email;
 
-    if (!email || !password) {
+    if (!loginIdentifier || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email y contraseña son requeridos'
+        message: 'Identificador (email o nombre de usuario) y contraseña son requeridos'
       });
     }
 
@@ -129,14 +134,18 @@ router.post('/login', async (req, res) => {
 
     // LOGIN COMO BARBERO
     if (isBarber) {
-      console.log('🔍 Buscando barbero en MongoDB...');
+      console.log('🔍 Buscando barbero en MongoDB con:', loginIdentifier);
       
-      // Usar la conexión de Mongoose
       const db = mongoose.connection.db;
       const collection = db.collection("barberos");
       
-      // Buscar barbero por EMAIL (el campo en la colección es 'email', no 'correo')
-      const barbero = await collection.findOne({ email: email.toLowerCase() });
+      // Buscar barbero por EMAIL o por NOMBRE
+      const barbero = await collection.findOne({
+        $or: [
+          { email: loginIdentifier.toLowerCase() },
+          { nombre: loginIdentifier }
+        ]
+      });
       
       console.log('📄 Barbero encontrado:', barbero ? 'Sí' : 'No');
       if (barbero) {
@@ -144,48 +153,45 @@ router.post('/login', async (req, res) => {
         console.log('   - Nombre:', barbero.nombre);
         console.log('   - Email:', barbero.email);
         console.log('   - Estado:', barbero.estado);
-        console.log('   - Contraseña almacenada:', barbero.password);
       }
       
       if (!barbero) {
-        console.log('❌ Barbero no encontrado con email:', email);
+        console.log('❌ Barbero no encontrado con identifier:', loginIdentifier);
         return res.status(401).json({
           success: false,
-          message: 'Credenciales inválidas'
+          message: 'Credenciales inválidas. Verifica tu nombre de usuario o correo.'
         });
       }
 
-      // Verificar si el barbero está activo (usando el campo 'estado')
+      // Verificar si el barbero está activo
       if (barbero.estado !== 'activo') {
-        console.log('🚫 Barbero inactivo:', email);
+        console.log('🚫 Barbero inactivo:', loginIdentifier);
         return res.status(403).json({
           success: false,
           message: 'Tu cuenta de barbero está inactiva. Contacta al administrador.'
         });
       }
 
-      // IMPORTANTE: La contraseña del barbero NO está hasheada, está en texto plano
-      // Por lo tanto, comparamos directamente
-      console.log('🔐 Comparando contraseña (texto plano)...');
-      console.log('   Contraseña ingresada:', password);
-      console.log('   Contraseña almacenada:', barbero.password);
+      // Comparar contraseña (texto plano)
+      console.log('🔐 Comparando contraseña...');
       const passwordValida = (password === barbero.password);
       console.log('   Resultado:', passwordValida ? '✅ Válida' : '❌ Inválida');
       
       if (!passwordValida) {
-        console.log('❌ Contraseña incorrecta para barbero:', email);
+        console.log('❌ Contraseña incorrecta para barbero:', loginIdentifier);
         return res.status(401).json({
           success: false,
-          message: 'Credenciales inválidas'
+          message: 'Credenciales inválidas. Contraseña incorrecta.'
         });
       }
 
-      console.log('✅ Login exitoso como barbero:', email);
+      console.log('✅ Login exitoso como barbero:', barbero.nombre);
 
       return res.json({
         success: true,
-        message: 'Login exitoso como barbero',
+        message: `Bienvenido ${barbero.nombre}`,
         userId: barbero._id,
+        isBarber: true,
         user: {
           userId: barbero._id,
           nombre: barbero.nombre,
@@ -199,22 +205,31 @@ router.post('/login', async (req, res) => {
     }
 
     // LOGIN COMO USUARIO NORMAL
-    console.log('🔍 Buscando usuario en MongoDB...');
+    console.log('🔍 Buscando usuario en MongoDB con:', loginIdentifier);
     
-    const usuario = await User.findOne({ 
-      correo: email.toLowerCase() 
+    // Buscar usuario por CORREO o por NOMBRE
+    const usuario = await User.findOne({
+      $or: [
+        { correo: loginIdentifier.toLowerCase() },
+        { nombre: loginIdentifier }
+      ]
     });
 
     if (!usuario) {
-      console.log('❌ Usuario no encontrado:', email);
+      console.log('❌ Usuario no encontrado:', loginIdentifier);
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales inválidas. Verifica tu nombre de usuario o correo.'
       });
     }
 
+    console.log('📄 Usuario encontrado:', usuario.nombre);
+    console.log('   - ID:', usuario._id);
+    console.log('   - Correo:', usuario.correo);
+    console.log('   - Activo:', usuario.isActive);
+
     if (!usuario.isActive) {
-      console.log('🚫 Cuenta inactiva:', email);
+      console.log('🚫 Cuenta inactiva:', loginIdentifier);
       return res.status(403).json({
         success: false,
         message: 'La cuenta está desactivada. Contacta al soporte.'
@@ -224,22 +239,23 @@ router.post('/login', async (req, res) => {
     const passwordValida = await usuario.comparePassword(password);
 
     if (!passwordValida) {
-      console.log('❌ Contraseña incorrecta para:', email);
+      console.log('❌ Contraseña incorrecta para:', loginIdentifier);
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales inválidas. Contraseña incorrecta.'
       });
     }
 
-    console.log('✅ Login exitoso como usuario:', email);
+    console.log('✅ Login exitoso como usuario:', usuario.nombre);
 
     const usuarioResponse = usuario.toObject();
     delete usuarioResponse.password;
 
     res.json({
       success: true,
-      message: 'Login exitoso',
+      message: `Bienvenido ${usuario.nombre}`,
       userId: usuario._id,
+      isBarber: false,
       user: {
         userId: usuario._id,
         nombre: usuario.nombre,
@@ -253,6 +269,151 @@ router.post('/login', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error en login:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en el servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// NUEVO ENDPOINT: LOGIN UNIFICADO SIN ISBARBER (DETECCIÓN AUTOMÁTICA)
+router.post('/login/unified', async (req, res) => {
+  try {
+    console.log('🔑 Intento de login unificado (detección automática):', req.body);
+
+    const { identifier, password } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Identificador y contraseña son requeridos'
+      });
+    }
+
+    // Verificar que la conexión de MongoDB esté activa
+    if (!mongoose.connection || !mongoose.connection.db) {
+      console.error('❌ No hay conexión activa con MongoDB');
+      return res.status(500).json({
+        success: false,
+        message: 'Error de conexión con la base de datos'
+      });
+    }
+
+    // 1. PRIMERO BUSCAR EN BARBEROS
+    console.log('🔍 Buscando en barberos...');
+    const db = mongoose.connection.db;
+    const barberosCollection = db.collection("barberos");
+    
+    const barbero = await barberosCollection.findOne({
+      $or: [
+        { email: identifier.toLowerCase() },
+        { nombre: identifier }
+      ]
+    });
+    
+    if (barbero) {
+      console.log('📄 Barbero encontrado:', barbero.nombre);
+      
+      // Verificar estado del barbero
+      if (barbero.estado !== 'activo') {
+        console.log('🚫 Barbero inactivo');
+        return res.status(403).json({
+          success: false,
+          message: 'Tu cuenta de barbero está inactiva. Contacta al administrador.'
+        });
+      }
+      
+      // Verificar contraseña
+      const passwordValida = (password === barbero.password);
+      
+      if (!passwordValida) {
+        console.log('❌ Contraseña incorrecta para barbero');
+        return res.status(401).json({
+          success: false,
+          message: 'Contraseña incorrecta'
+        });
+      }
+      
+      console.log('✅ Login exitoso como barbero:', barbero.nombre);
+      
+      return res.json({
+        success: true,
+        message: `Bienvenido ${barbero.nombre}`,
+        userId: barbero._id,
+        isBarber: true,
+        user: {
+          userId: barbero._id,
+          nombre: barbero.nombre,
+          email: barbero.email,
+          role: 'barber',
+          barberId: barbero.barberId,
+          estado: barbero.estado
+        }
+      });
+    }
+    
+    // 2. SI NO ES BARBERO, BUSCAR EN USUARIOS
+    console.log('🔍 Buscando en usuarios...');
+    const usuario = await User.findOne({
+      $or: [
+        { correo: identifier.toLowerCase() },
+        { nombre: identifier }
+      ]
+    });
+    
+    if (usuario) {
+      console.log('📄 Usuario encontrado:', usuario.nombre);
+      
+      if (!usuario.isActive) {
+        console.log('🚫 Cuenta inactiva');
+        return res.status(403).json({
+          success: false,
+          message: 'La cuenta está desactivada. Contacta al soporte.'
+        });
+      }
+      
+      const passwordValida = await usuario.comparePassword(password);
+      
+      if (!passwordValida) {
+        console.log('❌ Contraseña incorrecta para usuario');
+        return res.status(401).json({
+          success: false,
+          message: 'Contraseña incorrecta'
+        });
+      }
+      
+      console.log('✅ Login exitoso como usuario:', usuario.nombre);
+      
+      const usuarioResponse = usuario.toObject();
+      delete usuarioResponse.password;
+      
+      return res.json({
+        success: true,
+        message: `Bienvenido ${usuario.nombre}`,
+        userId: usuario._id,
+        isBarber: false,
+        user: {
+          userId: usuario._id,
+          nombre: usuario.nombre,
+          email: usuario.correo,
+          telefono: usuario.telefono,
+          role: 'user',
+          profileImage: usuario.profileImage || null,
+          isActive: usuario.isActive
+        }
+      });
+    }
+    
+    // 3. NO SE ENCONTRÓ EN NINGUNA COLECCIÓN
+    console.log('❌ Usuario no encontrado en ninguna colección:', identifier);
+    return res.status(401).json({
+      success: false,
+      message: 'Usuario no encontrado. Verifica tu nombre de usuario o correo.'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en login unificado:', error);
     res.status(500).json({
       success: false,
       message: 'Error en el servidor',
@@ -276,7 +437,6 @@ router.get('/barber/:barberId', async (req, res) => {
     const db = mongoose.connection.db;
     const collection = db.collection("barberos");
     
-    const { ObjectId } = require('mongodb');
     let barbero;
     
     try {

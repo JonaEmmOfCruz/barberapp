@@ -13,7 +13,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isBarber = false;
@@ -21,45 +21,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
-    // Validar formulario
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
-    
-    // Mostrar diálogo de carga
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-    
-    // Llamar al servicio de login
-    final result = await AuthService.loginUser(
-      email: _emailController.text.trim(),
+
+    String identifier = _identifierController.text.trim();
+
+    // Usar loginUnified que detecta automáticamente si es usuario o barbero
+    final result = await AuthService.loginUnified(
+      identifier: identifier,
       password: _passwordController.text,
-      isBarber: _isBarber,
     );
-    
+
     if (context.mounted) {
-      Navigator.pop(context); // Cerrar diálogo de carga
-      
+      Navigator.pop(context);
+
       if (result['success']) {
-        // Obtener el userId del resultado
         String userId = result['userId'] ?? '';
-        
-        print('Login exitoso - UserId: $userId, isBarber: $_isBarber');
-        
-        // Navegar a la pantalla correspondiente según el tipo de usuario
-        if (_isBarber) {
-          // Redirigir a pantalla de barbero
+        bool isBarber = result['isBarber'] ?? false;
+
+        print(
+          'Login exitoso - UserId: $userId, Tipo: ${isBarber ? "BARBERO" : "USUARIO"}',
+        );
+
+        if (isBarber) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -67,18 +64,14 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else {
-          // Redirigir a pantalla de usuario normal
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => UserHomeScreen(userId: userId),
-            ),
+            MaterialPageRoute(builder: (_) => UserHomeScreen(userId: userId)),
           );
         }
       } else {
-        // Mostrar mensaje de error
         String errorMessage = result['message'] ?? 'Error al iniciar sesión';
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -92,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     }
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -117,8 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                
-                // Título
+
                 Text(
                   'Bienvenido',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
@@ -126,98 +118,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     letterSpacing: 1.5,
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
-                // Subtítulo
+
                 Text(
-                  'Ingresa tus credenciales para continuar',
+                  'Ingresa tu nombre de usuario o correo',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary.withOpacity(0.8),
                     fontWeight: FontWeight.w300,
                   ),
                 ),
-                
+
                 const SizedBox(height: 48),
-                
-                // Selector de tipo (Usuario / Barbero)
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    border: Border.all(
-                      color: AppColors.primary.withOpacity(0.1),
-                      width: 1,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isBarber = false),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: !_isBarber 
-                                ? AppColors.primary.withOpacity(0.1) 
-                                : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'USUARIO',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: !_isBarber 
-                                  ? AppColors.primary 
-                                  : AppColors.textSecondary.withOpacity(0.5),
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 1.2,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isBarber = true),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: _isBarber 
-                                ? AppColors.secondary.withOpacity(0.1) 
-                                : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'BARBERO',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _isBarber 
-                                  ? AppColors.secondary 
-                                  : AppColors.textSecondary.withOpacity(0.5),
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 1.2,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 40),
-                
-                // Campo de Email
+
+                // Campo de Usuario/Email
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    'CORREO ELECTRÓNICO',
+                    'NOMBRE DE USUARIO O CORREO',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.2,
@@ -234,38 +152,33 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _identifierController,
+                    keyboardType: TextInputType.text,
                     style: TextStyle(
                       color: AppColors.text,
                       fontWeight: FontWeight.w400,
                     ),
                     decoration: const InputDecoration(
-                      hintText: 'ejemplo@correo.com',
+                      hintText: 'Ingresa tu usuario o correo registrado',
                       hintStyle: TextStyle(fontWeight: FontWeight.w300),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 18,
                       ),
-                      prefixIcon: Icon(Icons.email_outlined, size: 20),
+                      prefixIcon: Icon(Icons.person_outline, size: 20),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Ingresa tu correo';
-                      }
-                      // Validar formato de email
-                      final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-                      if (!emailRegex.hasMatch(value)) {
-                        return 'Ingresa un correo válido';
+                        return 'Ingresa tu nombre de usuario o correo';
                       }
                       return null;
                     },
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Campo de Contraseña
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -304,9 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: const Icon(Icons.lock_outlined, size: 20),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordVisible 
-                            ? Icons.visibility_off_outlined 
-                            : Icons.visibility_outlined,
+                          _isPasswordVisible
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
                           size: 20,
                         ),
                         onPressed: () {
@@ -327,27 +240,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                 ),
-                
+
                 const SizedBox(height: 40),
-                
+
                 // Botón de inicio de sesión
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _isBarber 
-                        ? AppColors.secondary 
-                        : AppColors.primary,
+                      backgroundColor: AppColors.secondary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.2,
-                      ),
+                      textStyle: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1.2,
+                          ),
                     ),
                     onPressed: _isLoading ? null : _handleLogin,
                     child: _isLoading
@@ -356,13 +268,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text('INICIAR SESIÓN'),
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
               ],
             ),
