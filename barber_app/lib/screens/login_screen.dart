@@ -50,23 +50,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result['success']) {
         String userId = result['userId'] ?? '';
+        String userName = result['userName'] ?? 'Usuario'; // Nuevo: obtener nombre
         bool isBarber = result['isBarber'] ?? false;
 
         print(
-          'Login exitoso - UserId: $userId, Tipo: ${isBarber ? "BARBERO" : "USUARIO"}',
+          'Login exitoso - UserId: $userId, Nombre: $userName, Tipo: ${isBarber ? "BARBERO" : "USUARIO"}',
         );
 
         if (isBarber) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => BarberHomeScreen(barberId: userId),
+              builder: (_) => BarberHomeScreen(barberId: userId, barberName: userName,), // Si quieres pasar nombre, modifica BarberHomeScreen
             ),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => UserHomeScreen(userId: userId)),
+            MaterialPageRoute(
+              builder: (_) => UserHomeScreen(
+                userId: userId,
+                userName: userName, // Pasamos el nombre
+              ),
+            ),
           );
         }
       } else {

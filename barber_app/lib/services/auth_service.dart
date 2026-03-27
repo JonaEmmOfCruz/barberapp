@@ -29,20 +29,27 @@ class AuthService {
       
       if (response.statusCode == 200 && data['success'] == true) {
         bool isBarber = data['isBarber'] ?? false;
+        Map<String, dynamic>? userData = data['user']; // Datos completos del usuario
+        
+        // Extraer nombre (asumiendo campo 'nombre' o 'name')
+        String userName = userData?['nombre'] ?? userData?['name'] ?? 'Usuario';
+        
         print('✅ Login exitoso como ${isBarber ? 'BARBERO' : 'USUARIO'}');
         
         return {
           'success': true,
           'userId': data['userId'] ?? '',
+          'userName': userName,      // <-- Nuevo campo
           'isBarber': isBarber,
           'userType': isBarber ? 'barber' : 'user',
           'message': data['message'] ?? 'Login exitoso',
-          'user': data['user'],
+          'user': userData,
         };
       } else {
         return {
           'success': false,
           'userId': null,
+          'userName': null,
           'isBarber': false,
           'userType': null,
           'message': data['message'] ?? 'Usuario o contraseña incorrectos',
@@ -53,6 +60,7 @@ class AuthService {
       return {
         'success': false,
         'userId': null,
+        'userName': null,
         'isBarber': false,
         'userType': null,
         'message': 'Error de conexión: $e',
@@ -86,19 +94,24 @@ class AuthService {
       
       if (response.statusCode == 200 && data['success'] == true) {
         String userId = data['userId'] ?? '';
+        Map<String, dynamic>? userData = data['user'];
+        String userName = userData?['nombre'] ?? userData?['name'] ?? 'Usuario';
+        
         print('✅ Login exitoso, userId: $userId');
         
         return {
           'success': true,
           'userId': userId,
+          'userName': userName,
           'isBarber': isBarber,
           'message': data['message'] ?? 'Login exitoso',
-          'user': data['user'],
+          'user': userData,
         };
       } else {
         return {
           'success': false,
           'userId': null,
+          'userName': null,
           'isBarber': false,
           'message': data['message'] ?? 'Error en el login',
         };
@@ -108,6 +121,7 @@ class AuthService {
       return {
         'success': false,
         'userId': null,
+        'userName': null,
         'isBarber': false,
         'message': 'Error de conexión: $e',
       };
