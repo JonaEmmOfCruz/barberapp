@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import 'user_register_screen.dart';
-import 'barber_register_screen.dart';
 
 class RegisterChoiceScreen extends StatelessWidget {
   const RegisterChoiceScreen({super.key});

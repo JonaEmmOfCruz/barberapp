@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'package:barber_app/main.dart';
+import 'package:barber_app/screens/landing_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:barber_app/config/app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:barber_app/screens/landing_screen.dart';
 
 class BarberProfileScreen extends StatefulWidget {
   final String barberId;
@@ -121,6 +125,24 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
+                  ElevatedButton(
+  onPressed: () async {
+    // 1. Borrar sesión
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // 2. Ir al login y borrar historial
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => LandingScreen()),
+      (route) => false,
+    );
+  },
+  style: ElevatedButton.styleFrom(
+    backgroundColor: Colors.red,
+  ),
+  child: Text("Cerrar sesión"),
+)
                 ],
               ),
             ),
@@ -184,7 +206,7 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
 
   Widget _buildDropdown(IconData icon) {
     return DropdownButtonFormField<String>(
-      value: _vehicleType,
+      initialValue: _vehicleType,
       decoration: _inputDecoration('Selecciona tipo', icon),
       items: _vehicleTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
       onChanged: (value) => setState(() => _vehicleType = value),
@@ -270,4 +292,6 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
     setState(() => _isLoading = false);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.blue, content: Text('Perfil guardado exitosamente')));
   }
+
+  
 }

@@ -340,7 +340,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
 
             const SizedBox(height: 20),

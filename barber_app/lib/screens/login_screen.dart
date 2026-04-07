@@ -16,7 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  bool _isBarber = false;
+  final bool _isBarber = false;
   bool _isLoading = false;
 
   @override

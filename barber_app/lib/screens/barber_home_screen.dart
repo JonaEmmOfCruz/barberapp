@@ -266,7 +266,7 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
                               child: Switch(
                                 value: _isAvailable,
                                 onChanged: _updateAvailability,
-                                activeColor: Colors.white,
+                                activeThumbColor: Colors.white,
                                 activeTrackColor: Colors.blue,
                                 inactiveThumbColor: Colors.white,
                                 inactiveTrackColor: Colors.grey[400],

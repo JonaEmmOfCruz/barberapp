@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String ipAddress = '192.168.100.99';
+  static const String ipAddress = 'localhost';
   static const int port = 3000;
 
 
