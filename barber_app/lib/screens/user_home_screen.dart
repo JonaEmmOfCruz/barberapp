@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:barber_app/screens/user_perfil_screen.dart';
 import 'package:barber_app/config/app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Ya no necesitamos UserModel porque no haremos la petición a /api/users
 // class UserModel { ... }  // ELIMINADO
@@ -27,6 +28,7 @@ class UserHomeScreen extends StatefulWidget {
 class _UserHomeScreenState extends State<UserHomeScreen> {
   AppleMapController? _mapController;
   LatLng? _currentLatLng;
+  String? profileImageUrl;
 
   final String baseUrl = AppConfig.baseUrl;
 
@@ -47,8 +49,16 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Future<void> _initData() async {
     // Eliminamos _fetchUser()
+    await _loadUserPhoto();
     await _determinePosition();
   }
+
+  Future<void> _loadUserPhoto() async {
+  final prefs = await SharedPreferences.getInstance();
+  setState(() {
+    profileImageUrl = prefs.getString('profileImage');
+  });
+}
 
   // Eliminamos completamente el método _fetchUser()
 
@@ -443,23 +453,39 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 
   Widget _buildAvatar() {
-    // Como ya no tenemos acceso a profileImage sin API, mostramos un ícono
-    return Container(
+  return GestureDetector(
+    onTap: () {
+      // Navegamos al perfil y al volver (.then) refrescamos la foto
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const UserPerfilScreen()),
+      ).then((_) => _loadUserPhoto());
+    },
+    child: Container(
       width: 65,
       height: 65,
       decoration: BoxDecoration(
         color: Colors.blue[50],
         borderRadius: BorderRadius.circular(15),
+        image: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
+            ? DecorationImage(
+                image: NetworkImage('http://localhost:3000$profileImageUrl'),
+                fit: BoxFit.cover,
+              )
+            : null,
       ),
-      child: const Center(
-        child: Icon(
-          Icons.person,
-          color: Colors.blue,
-          size: 40,
-        ),
-      ),
-    );
-  }
+      child: (profileImageUrl == null || profileImageUrl!.isEmpty)
+          ? const Center(
+              child: Icon(
+                Icons.person,
+                color: Colors.blue,
+                size: 40,
+              ),
+            )
+          : null,
+    ),
+  );
+}
 
   Widget _blueBtn(String text, VoidCallback onTap) {
     return SizedBox(

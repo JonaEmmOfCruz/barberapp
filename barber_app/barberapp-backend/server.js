@@ -91,6 +91,8 @@ const connectDB = async () => {
 
 connectDB();
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 /* 
     Rutas
 */

@@ -1,4 +1,3 @@
-// routes/auth.js - VERSIÓN CORREGIDA CON SOPORTE PARA IDENTIFIER
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
@@ -6,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const { ObjectId } = require('mongodb');
 
-// ✅ REGISTRO DE USUARIO NORMAL (sin cambios)
+// REGISTRO DE USUARIO NORMAL 
 router.post('/register/user', async (req, res) => {
   try {
     console.log('📝 Intento de registro de usuario: ', req.body);
@@ -348,6 +347,7 @@ router.post('/login/unified', async (req, res) => {
           email: barbero.email,
           role: 'barber',
           barberId: barbero.barberId,
+          profileImage: barbero.profileImage || null,
           estado: barbero.estado
         }
       });
@@ -467,5 +467,46 @@ router.get('/barber/:barberId', async (req, res) => {
     });
   }
 });
+
+// RUTA PARA OBTENER DATOS DEL USUARIO (Faltaba esta)
+router.get('/get-user/:userId', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.userId).select('-password');
+        if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// RUTA PARA ACTUALIZAR DATOS (Faltaba esta)
+router.put('/update-user', async (req, res) => {
+    try {
+        const { userId, nombre, email, telefono, password } = req.body;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+
+        if (nombre) user.nombre = nombre;
+        if (email) user.correo = email;
+        if (telefono) user.telefono = telefono;
+        if (password) user.password = password; 
+
+        await user.save();
+
+        // DEVOLVEMOS EL USUARIO ACTUALIZADO (Sin password)
+        const updatedUser = user.toObject();
+        delete updatedUser.password;
+
+        res.json({ 
+            success: true, 
+            message: 'Usuario actualizado',
+            user: updatedUser // <--- Esto ayuda a Flutter a refrescar
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
 
 module.exports = router;

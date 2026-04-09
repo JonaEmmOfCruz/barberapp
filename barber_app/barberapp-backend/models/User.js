@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema({
   telefono: { type: String, required: true },
   password: { type: String, required: true },
   profileImage: { type: String, default: null },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  cambiosNombre: { type: Number, default: 0 }
 }, { timestamps: true });
 
 // Middleware para encriptar - VERSIÓN CORREGIDA (SIN next)

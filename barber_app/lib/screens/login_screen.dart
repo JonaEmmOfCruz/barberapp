@@ -3,6 +3,7 @@ import '../main.dart';
 import '../services/auth_service.dart';
 import 'user_home_screen.dart';
 import 'barber_home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -50,8 +51,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result['success']) {
         String userId = result['userId'] ?? '';
-        String userName = result['userName'] ?? 'Usuario'; // Nuevo: obtener nombre
+        String userName =
+            result['userName'] ?? 'Usuario'; // Nuevo: obtener nombre
         bool isBarber = result['isBarber'] ?? false;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userId', userId);
+
+        // 1. Guardamos la imagen que viene del servidor (si existe)
+        if (result['user'] != null && result['user']['profileImage'] != null) {
+          await prefs.setString('profileImage', result['user']['profileImage']);
+        }
 
         print(
           'Login exitoso - UserId: $userId, Nombre: $userName, Tipo: ${isBarber ? "BARBERO" : "USUARIO"}',
@@ -61,7 +70,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => BarberHomeScreen(barberId: userId, barberName: userName,), // Si quieres pasar nombre, modifica BarberHomeScreen
+              builder: (_) => BarberHomeScreen(
+                barberId: userId,
+                barberName: userName,
+              ), // Si quieres pasar nombre, modifica BarberHomeScreen
             ),
           );
         } else {

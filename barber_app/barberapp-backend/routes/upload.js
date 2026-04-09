@@ -133,9 +133,9 @@ router.post('/profile-image', upload.single('image'), async (req, res) => {
         console.log('Usuario actualizado con imagen:', imageUrl);
 
         res.status(200).json({
-            message: 'Imagen subida exitosamente',
-            imageUrl: imageUrl
-        });
+    success: true,
+    filePath: imageUrl
+});
 
     } catch (error) {
         console.error('Error al subir imagen:', error);
