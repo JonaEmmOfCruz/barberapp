@@ -7,18 +7,16 @@ import 'dart:convert';
 import 'package:barber_app/screens/user_perfil_screen.dart';
 import 'package:barber_app/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// Ya no necesitamos UserModel porque no haremos la petición a /api/users
-// class UserModel { ... }  // ELIMINADO
+import 'package:barber_app/screens/waiting_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   final String userId;
-  final String userName;   // Nuevo parámetro
+  final String userName;
 
   const UserHomeScreen({
-    super.key, 
+    super.key,
     required this.userId,
-    required this.userName,   // Recibir el nombre
+    required this.userName,
   });
 
   @override
@@ -32,9 +30,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   final String baseUrl = AppConfig.baseUrl;
 
-  // Eliminamos _user, ya no lo necesitamos
   String _realAddress = "Obteniendo ubicación...";
   bool _isExpanded = false;
+  bool _isLoadingService =
+      false; // <-- NUEVO: controla la vista de carga en la tarjeta
 
   // Lógica de servicios
   String _selectedType = "propio";
@@ -44,23 +43,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initData();  // Solo llamamos a _determinePosition
+    _initData();
   }
 
   Future<void> _initData() async {
-    // Eliminamos _fetchUser()
     await _loadUserPhoto();
     await _determinePosition();
   }
 
   Future<void> _loadUserPhoto() async {
-  final prefs = await SharedPreferences.getInstance();
-  setState(() {
-    profileImageUrl = prefs.getString('profileImage');
-  });
-}
-
-  // Eliminamos completamente el método _fetchUser()
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      profileImageUrl = prefs.getString('profileImage');
+    });
+  }
 
   Future<void> _determinePosition() async {
     try {
@@ -74,7 +70,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         position.longitude,
       );
       setState(() {
-        _realAddress = "${p[0].street}, ${p[0].locality}, ${p[0].administrativeArea}";
+        _realAddress =
+            "${p[0].street}, ${p[0].locality}, ${p[0].administrativeArea}";
       });
       _centerMapWithZoom();
     } catch (e) {
@@ -92,7 +89,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     }
   }
 
-  // Método para añadir a la lista y limpiar selección
   void _addServiceAndClear() {
     if (_selectedServices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -112,6 +108,120 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     });
   }
 
+  // -------------------------------------------------------------
+  // MÉTODO PRINCIPAL DE CONFIRMACIÓN (MODIFICADO)
+  // -------------------------------------------------------------
+  Future<void> _confirmarServicio() async {
+    // 1. Agregar servicios pendientes si los hay
+    if (_selectedServices.isNotEmpty) {
+      _addServiceAndClear();
+    }
+
+    if (_finalServiceList.isEmpty) {
+      _showError("Añade al menos un servicio");
+      return;
+    }
+
+    // 2. Validar datos obligatorios
+    final primerGrupo = _finalServiceList.first;
+    final tipo = primerGrupo['tipo'] as String?;
+    final servicios = primerGrupo['servicios'] as List<String>?;
+
+    if (tipo == null || tipo.isEmpty) {
+      _showError("El tipo de servicio no es válido");
+      return;
+    }
+    if (servicios == null || servicios.isEmpty) {
+      _showError("No hay servicios seleccionados");
+      return;
+    }
+    if (widget.userId.isEmpty) {
+      _showError("ID de usuario no disponible");
+      return;
+    }
+
+    final lat = _currentLatLng?.latitude;
+    final lng = _currentLatLng?.longitude;
+    if (lat == null || lng == null) {
+      _showError("Ubicación no disponible. Intenta de nuevo.");
+      return;
+    }
+
+    // 3. Construir JSON
+    final body = jsonEncode({
+      'userId': widget.userId,
+      'tipo': tipo,
+      'servicios': servicios,
+      'ubicacion': {
+        'direccion': _realAddress,
+        'coordenadas': {'lat': lat, 'lng': lng},
+      },
+    });
+
+    // 4. ACTIVAR ESTADO DE CARGA EN LA TARJETA (reemplaza al diálogo)
+    setState(() {
+      _isLoadingService = true;
+      _isExpanded = false; // opcional: colapsar la tarjeta a tamaño pequeño
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/service-requests'),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      // 5. DESACTIVAR CARGA
+      setState(() {
+        _isLoadingService = false;
+      });
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        print('DEBUG: Respuesta completa: $data'); // Para depuración
+
+        // Intentar obtener el ID de varias formas
+        final serviceId =
+            data['serviceRequestId']?.toString() ??
+            data['ServiceRequestId']?.toString() ??
+            data['_id']?.toString() ??
+            data['id']?.toString() ??
+            data['data']?['id']?.toString();
+
+        if (serviceId == null || serviceId.isEmpty) {
+          _showError("No se pudo obtener el ID del servicio");
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => WaitingScreen(serviceRequestId: serviceId),
+          ),
+        );
+      } else {
+        _showError(
+          "Error al crear la solicitud (código ${response.statusCode})",
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingService = false;
+      });
+      _showError("Error de conexión: $e");
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // FIN MÉTODO CONFIRMACIÓN
+  // -------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,7 +230,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           _currentLatLng == null
               ? const Center(child: CircularProgressIndicator())
               : AppleMap(
-                  initialCameraPosition: CameraPosition(target: _currentLatLng!, zoom: 15),
+                  initialCameraPosition: CameraPosition(
+                    target: _currentLatLng!,
+                    zoom: 15,
+                  ),
                   onMapCreated: (c) => _mapController = c,
                   myLocationEnabled: true,
                   myLocationButtonEnabled: false,
@@ -139,7 +252,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        widget.userName,  // Usamos el nombre recibido
+                        widget.userName,
                         style: const TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.bold,
@@ -167,19 +280,28 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             top: 130,
             child: Column(
               children: [
-                _iconBtn(Icons.person_outline, onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserPerfilScreen()),
-                  );
-                }),
+                _iconBtn(
+                  Icons.person_outline,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserPerfilScreen(),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 12),
-                _iconBtn(Icons.my_location, isCircle: true, onTap: _determinePosition),
+                _iconBtn(
+                  Icons.my_location,
+                  isCircle: true,
+                  onTap: _determinePosition,
+                ),
               ],
             ),
           ),
 
-          // CARD DINÁMICA
+          // TARJETA INFERIOR DINÁMICA
           Align(
             alignment: Alignment.bottomCenter,
             child: AnimatedContainer(
@@ -189,9 +311,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.98),
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 15),
+                ],
               ),
-              child: _isExpanded ? _buildExpandedBody() : _buildInitialBody(),
+              // CONTENIDO CONDICIONAL
+              child: _isLoadingService
+                  ? _buildLoadingBody() // <-- NUEVA VISTA DE CARGA
+                  : (_isExpanded ? _buildExpandedBody() : _buildInitialBody()),
             ),
           ),
         ],
@@ -199,6 +326,84 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
+  // -------------------------------------------------------------
+  // NUEVO: CUERPO DE LA TARJETA EN ESTADO DE CARGA
+  // -------------------------------------------------------------
+  Widget _buildLoadingBody() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.search,
+                color: Colors.blue,
+              ), // Icono de búsqueda
+            ),
+            const SizedBox(width: 15),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Buscando barbero",
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                  Text(
+                    "Espera un momento...",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const CircularProgressIndicator(
+          strokeWidth: 3,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          "Conectando con barberos cercanos",
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 20),
+        // Botón opcional para cancelar la búsqueda
+        SizedBox(
+          width: double.infinity,
+          height: 45,
+          child: OutlinedButton(
+            onPressed: () {
+              setState(() {
+                _isLoadingService = false;
+                // Podrías también cancelar la petición HTTP si usas http.Client()
+              });
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text("Cancelar"),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------
+  // CUERPOS ORIGINALES (SIN CAMBIOS)
+  // -------------------------------------------------------------
   Widget _buildInitialBody() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -225,7 +430,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                   Text(
                     _realAddress,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -233,14 +441,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        _blueBtn("Solicitar Servicio", () => setState(() => _isExpanded = true)),
+        _blueBtn(
+          "Solicitar Servicio",
+          () => setState(() => _isExpanded = true),
+        ),
       ],
     );
   }
 
   Widget _buildExpandedBody() {
     return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -254,7 +467,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.blue),
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.blue,
+                  ),
                   onPressed: () => setState(() => _isExpanded = false),
                 ),
               ],
@@ -344,9 +560,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                        onPressed: () => setState(() => _finalServiceList.removeAt(index)),
-                      )
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            setState(() => _finalServiceList.removeAt(index)),
+                      ),
                     ],
                   ),
                 );
@@ -363,19 +584,20 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 20),
-            _blueBtn("Confirmar Servicio", () {
-              if (_selectedServices.isNotEmpty) _addServiceAndClear();
-              print("ENVIANDO A API: $_finalServiceList");
-            }),
+            _blueBtn("Confirmar Servicio", _confirmarServicio),
           ],
         ),
       ),
     );
   }
 
-  // --- COMPONENTES ---
-
-  Widget _typeCard(String text, IconData icon, bool selected, VoidCallback onTap) {
+  // --- COMPONENTES VISUALES (sin cambios) ---
+  Widget _typeCard(
+    String text,
+    IconData icon,
+    bool selected,
+    VoidCallback onTap,
+  ) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -416,7 +638,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     bool isSelected = _selectedServices.contains(text);
     return GestureDetector(
       onTap: () => setState(() {
-        isSelected ? _selectedServices.remove(text) : _selectedServices.add(text);
+        isSelected
+            ? _selectedServices.remove(text)
+            : _selectedServices.add(text);
       }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -453,39 +677,34 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 
   Widget _buildAvatar() {
-  return GestureDetector(
-    onTap: () {
-      // Navegamos al perfil y al volver (.then) refrescamos la foto
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const UserPerfilScreen()),
-      ).then((_) => _loadUserPhoto());
-    },
-    child: Container(
-      width: 65,
-      height: 65,
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(15),
-        image: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
-            ? DecorationImage(
-                image: NetworkImage('http://localhost:3000$profileImageUrl'),
-                fit: BoxFit.cover,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const UserPerfilScreen()),
+        ).then((_) => _loadUserPhoto());
+      },
+      child: Container(
+        width: 65,
+        height: 65,
+        decoration: BoxDecoration(
+          color: Colors.blue[50],
+          borderRadius: BorderRadius.circular(15),
+          image: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
+              ? DecorationImage(
+                  image: NetworkImage('$baseUrl$profileImageUrl'),
+                  fit: BoxFit.cover,
+                )
+              : null,
+        ),
+        child: (profileImageUrl == null || profileImageUrl!.isEmpty)
+            ? const Center(
+                child: Icon(Icons.person, color: Colors.blue, size: 40),
               )
             : null,
       ),
-      child: (profileImageUrl == null || profileImageUrl!.isEmpty)
-          ? const Center(
-              child: Icon(
-                Icons.person,
-                color: Colors.blue,
-                size: 40,
-              ),
-            )
-          : null,
-    ),
-  );
-}
+    );
+  }
 
   Widget _blueBtn(String text, VoidCallback onTap) {
     return SizedBox(
@@ -501,7 +720,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         ),
         child: Text(
           text,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

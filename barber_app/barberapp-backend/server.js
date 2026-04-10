@@ -127,3 +127,8 @@ app.listen(PORT, () => {
     console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 URL: http://localhost:${PORT}`);
 });
+
+/* 
+    Solicitud de servicio usuario
+*/
+app.use('/api/service-requests', require('./routes/serviceRequests'));
