@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../main.dart';
-import 'legal_screens.dart';
+import '../../main.dart';
+import '../Main_Screens/legal_screens.dart';
 
 class BarberRegisterScreen extends StatefulWidget {
   const BarberRegisterScreen({super.key});

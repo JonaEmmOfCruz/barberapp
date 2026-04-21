@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
-import 'user_register_screen.dart';
+import '../../main.dart';
+import '../User_Screens/user_register_screen.dart';
 
 class RegisterChoiceScreen extends StatelessWidget {
   const RegisterChoiceScreen({super.key});
@@ -38,7 +38,7 @@ class RegisterChoiceScreen extends StatelessWidget {
               
               // Subtítulo
               Text(
-                'Selecciona el tipo de cuenta para disfrutar de nuestros servicios',
+                '',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary.withOpacity(0.8),
                   fontWeight: FontWeight.w400,

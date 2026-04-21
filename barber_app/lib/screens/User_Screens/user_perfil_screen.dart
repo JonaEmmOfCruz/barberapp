@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:barber_app/screens/landing_screen.dart';
+import 'package:barber_app/screens/Main_Screens/landing_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 

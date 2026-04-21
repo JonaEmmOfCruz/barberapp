@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:barber_app/screens/landing_screen.dart';
+import 'package:barber_app/screens/Main_Screens/landing_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';

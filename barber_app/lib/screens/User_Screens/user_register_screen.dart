@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../main.dart';
-import 'legal_screens.dart';
-import '../services/api_service.dart';
+import '../../main.dart';
+import '../Main_Screens/legal_screens.dart';
+import '../../services/api_service.dart';
 
 class UserRegisterScreen extends StatefulWidget {
   const UserRegisterScreen({super.key});

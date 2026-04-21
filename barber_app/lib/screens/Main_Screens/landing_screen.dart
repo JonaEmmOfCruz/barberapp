@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
+import '../../main.dart';
 import 'login_screen.dart';
 import 'register_choice_screen.dart';
 

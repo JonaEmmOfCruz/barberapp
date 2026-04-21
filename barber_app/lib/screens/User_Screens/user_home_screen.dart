@@ -4,10 +4,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:barber_app/screens/user_perfil_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 import 'package:barber_app/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:barber_app/screens/waiting_screen.dart';
+import 'package:barber_app/screens/Main_Screens/waiting_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   final String userId;

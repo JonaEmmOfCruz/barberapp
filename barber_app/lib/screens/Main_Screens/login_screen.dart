@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
-import '../services/auth_service.dart';
-import 'user_home_screen.dart';
-import 'barber_home_screen.dart';
+import '../../main.dart';
+import '../../services/auth_service.dart';
+import '../User_Screens/user_home_screen.dart';
+import '../Barber_Screens/barber_home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {

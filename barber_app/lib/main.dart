@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/landing_screen.dart';
+import 'screens/Main_Screens/landing_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,7 @@ class BarberGoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BarberGo',
+      title: 'Barbergo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
