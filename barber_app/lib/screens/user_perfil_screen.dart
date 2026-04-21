@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:barber_app/screens/landing_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 /*String getServerIp() {
   if (Platform.isAndroid) return '10.0.2.2:3000';
@@ -139,7 +138,7 @@ class _UserPerfilScreenState extends State<UserPerfilScreen> {
                                   profileImageUrl!.isNotEmpty)
                             ? DecorationImage(
                                 image: NetworkImage(
-                                  'http://localhost:3000${profileImageUrl}',
+                                  'http://localhost:3000$profileImageUrl',
                                 ),
                                 fit: BoxFit.cover,
                               )

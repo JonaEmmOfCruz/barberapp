@@ -56,3 +56,17 @@ app.*.map.json
 node_modules/
 build/
 pubspec.lock
+
+
+# Ignorar carpetas dentro del backend
+barberapp_backend/node_modules/
+barberapp_backend/uploads/
+barberapp_backend/.env
+
+# Ignorar carpetas dentro de flutter
+barber_app/.dart_tool/
+barber_app/build/
+barber_app/.pub-cache/
+
+# Otros
+.DS_Store

@@ -2,228 +2,204 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 const router = express.Router();
 
-// Asegurar que el directorio uploads existe
-const uploadDir = path.join(__dirname, '../uploads/profile-images');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+// =====================
+// 📁 CREAR CARPETAS
+// =====================
+const profileDir = path.join(__dirname, '../uploads/profile-images');
+const docsDir = path.join(__dirname, '../uploads');
+
+if (!fs.existsSync(profileDir)) {
+    fs.mkdirSync(profileDir, { recursive: true });
 }
 
-// Configuración de Multer para almacenamiento
+if (!fs.existsSync(docsDir)) {
+    fs.mkdirSync(docsDir, { recursive: true });
+}
+
+// =====================
+// ⚙️ MULTER CONFIG GLOBAL
+// =====================
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, uploadDir);
+        // Si viene de documentos
+        if (file.fieldname === 'profileImage' ||
+            file.fieldname === 'licenseImage' ||
+            file.fieldname === 'vehiclePhoto' ||
+            file.fieldname === 'platePhoto') {
+            cb(null, docsDir);
+        } else {
+            cb(null, profileDir);
+        }
     },
     filename: function (req, file, cb) {
-        // Generar nombre único para la imagen
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname);
-        cb(null, 'profile-' + req.body.userId + '-' + uniqueSuffix + ext);
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
+
+        if (file.fieldname === 'image') {
+            cb(null, `profile-${req.body.userId}-${unique}${ext}`);
+        } else {
+            cb(null, `barber-${unique}${ext}`);
+        }
     }
 });
 
-// Filtro más permisivo - acepta cualquier archivo que parezca una imagen
-const fileFilter = (req, file, cb) => {
-    console.log('Tipo de archivo recibido:', file.mimetype);
-    console.log('Nombre original:', file.originalname);
-    
-    // Lista amplia de tipos de imagen
-    const imageMimeTypes = [
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
-        'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml',
-        'image/heic', 'image/heif', 'image/ico', 'image/x-icon',
-        'application/octet-stream', // Común en iOS Simulator
-        'application/x-img', // Otro tipo común
-        'image/x-ms-bmp', 'image/x-tiff', 'image/x-photoshop',
-        'image/x-png', 'image/x-ico', 'image/x-icon',
-        'image/vnd.microsoft.icon'
-    ];
-    
-    // Extensiones permitidas
-    const imageExtensions = [
-        '.jpg', '.jpeg', '.png', '.gif', '.webp', 
-        '.bmp', '.tiff', '.tif', '.svg', '.heic', 
-        '.heif', '.ico', '.psd', '.ai', '.eps'
-    ];
-    
-    const ext = path.extname(file.originalname).toLowerCase();
-    const isImageByExtension = imageExtensions.includes(ext);
-    const isImageByMime = imageMimeTypes.includes(file.mimetype);
-    
-    // Para iOS Simulator, aceptar prácticamente cualquier cosa
-    const isIOSSimulator = req.headers['user-agent']?.includes('iPhone') || 
-                           req.headers['user-agent']?.includes('iPad') ||
-                           req.headers['origin']?.includes('localhost');
-    
-    if (isIOSSimulator) {
-        console.log('iOS Simulator detectado - aceptando archivo');
-        return cb(null, true);
-    }
-    
-    if (isImageByExtension || isImageByMime) {
-        console.log('Archivo aceptado como imagen');
-        return cb(null, true);
-    }
-    
-    // Si no estamos seguros, aceptamos de todas formas con advertencia
-    console.log('Aceptando archivo con tipo no reconocido:', file.mimetype);
-    cb(null, true); // Aceptar de todas formas
-    
-    // O si quieres rechazar los que no son imágenes:
-    // cb(new Error('Solo se permiten imágenes'));
-};
+const upload = multer({ storage });
 
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
-    fileFilter: fileFilter
-});
-
-// Ruta para subir imagen de perfil
+// =====================
+// 🖼️ SUBIR FOTO PERFIL
+// =====================
 router.post('/profile-image', upload.single('image'), async (req, res) => {
     try {
-        console.log('Recibiendo solicitud de subida de imagen');
-        console.log('Body:', req.body);
-        console.log('File:', req.file);
-
         const { userId } = req.body;
 
         if (!userId) {
-            return res.status(400).json({
-                message: 'Se requiere el ID del usuario'
-            });
+            return res.status(400).json({ message: 'Se requiere userId' });
         }
 
         if (!req.file) {
-            return res.status(400).json({
-                message: 'No se recibió ninguna imagen'
-            });
+            return res.status(400).json({ message: 'No se subió imagen' });
         }
 
-        // Buscar el usuario
         const user = await User.findById(userId);
-        
+
         if (!user) {
-            // Si el usuario no existe, eliminar la imagen subida
             fs.unlinkSync(req.file.path);
-            return res.status(404).json({
-                message: 'Usuario no encontrado'
-            });
+            return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        // Si el usuario ya tenía una imagen anterior, eliminarla
+        // borrar anterior
         if (user.profileImage) {
-            const oldImagePath = path.join(__dirname, '..', user.profileImage);
-            if (fs.existsSync(oldImagePath)) {
-                fs.unlinkSync(oldImagePath);
-                console.log('Imagen anterior eliminada:', oldImagePath);
-            }
+            const oldPath = path.join(__dirname, '..', user.profileImage);
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
 
-        // Construir la URL de la imagen
         const imageUrl = `/uploads/profile-images/${req.file.filename}`;
-
-        // Actualizar el usuario con la nueva imagen
         user.profileImage = imageUrl;
         await user.save();
 
-        console.log('Usuario actualizado con imagen:', imageUrl);
-
-        res.status(200).json({
-    success: true,
-    filePath: imageUrl
-});
+        res.json({ success: true, filePath: imageUrl });
 
     } catch (error) {
-        console.error('Error al subir imagen:', error);
-        
-        // Si hay error y se subió un archivo, eliminarlo
-        if (req.file) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (unlinkError) {
-                console.error('Error al eliminar archivo temporal:', unlinkError);
-            }
-        }
-
-        res.status(500).json({
-            message: 'Error al subir la imagen: ' + error.message
-        });
+        if (req.file) fs.unlinkSync(req.file.path);
+        res.status(500).json({ message: error.message });
     }
 });
 
-// Ruta para eliminar imagen de perfil
+// =====================
+// ❌ ELIMINAR FOTO PERFIL
+// =====================
 router.delete('/profile-image/:userId', async (req, res) => {
     try {
-        const { userId } = req.params;
+        const user = await User.findById(req.params.userId);
 
-        const user = await User.findById(userId);
-        
-        if (!user) {
-            return res.status(404).json({
-                message: 'Usuario no encontrado'
-            });
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        if (!user.profileImage) {
+            return res.status(400).json({ message: 'No tiene imagen' });
         }
 
-        if (user.profileImage) {
-            // Eliminar el archivo físico
-            const imagePath = path.join(__dirname, '..', user.profileImage);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath);
-            }
+        const imagePath = path.join(__dirname, '..', user.profileImage);
+        if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
 
-            // Actualizar el usuario
-            user.profileImage = null;
-            await user.save();
+        user.profileImage = null;
+        await user.save();
 
-            res.status(200).json({
-                message: 'Imagen eliminada exitosamente'
-            });
-        } else {
-            res.status(400).json({
-                message: 'El usuario no tiene imagen de perfil'
-            });
-        }
+        res.json({ message: 'Imagen eliminada' });
 
     } catch (error) {
-        console.error('Error al eliminar imagen:', error);
-        res.status(500).json({
-            message: 'Error al eliminar la imagen: ' + error.message
-        });
+        res.status(500).json({ message: error.message });
     }
 });
 
-// Ruta para obtener la imagen de perfil
+// =====================
+// 📥 OBTENER FOTO PERFIL
+// =====================
 router.get('/profile-image/:userId', async (req, res) => {
     try {
-        const { userId } = req.params;
+        const user = await User.findById(req.params.userId);
 
-        const user = await User.findById(userId);
-        
-        if (!user) {
-            return res.status(404).json({
-                message: 'Usuario no encontrado'
-            });
-        }
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         if (!user.profileImage) {
-            return res.status(404).json({
-                message: 'El usuario no tiene imagen de perfil'
-            });
+            return res.status(404).json({ message: 'Sin imagen' });
         }
 
-        res.status(200).json({
-            imageUrl: user.profileImage
-        });
+        res.json({ imageUrl: user.profileImage });
 
     } catch (error) {
-        console.error('Error al obtener imagen:', error);
-        res.status(500).json({
-            message: 'Error al obtener la imagen: ' + error.message
-        });
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// =====================
+// 📄 DOCUMENTOS BARBERO
+// =====================
+const barberFields = upload.fields([
+    { name: 'profileImage', maxCount: 1 },
+    { name: 'licenseImage', maxCount: 1 },
+    { name: 'vehiclePhoto', maxCount: 1 },
+    { name: 'platePhoto', maxCount: 1 }
+]);
+
+router.post('/barber-documents', barberFields, async (req, res) => {
+    try {
+        const { barberId, vehicleType, vehicleBrand, vehiclePlate } = req.body;
+
+        if (!barberId) {
+            return res.status(400).json({ message: 'Falta barberId' });
+        }
+
+        const getUrl = (field) =>
+            req.files[field] ? `/uploads/${req.files[field][0].filename}` : null;
+
+        const data = {
+            barberId,
+            vehicleType,
+            vehicleBrand,
+            vehiclePlate,
+            profileImage: getUrl('profileImage'),
+            licenseImage: getUrl('licenseImage'),
+            vehiclePhoto: getUrl('vehiclePhoto'),
+            platePhoto: getUrl('platePhoto'),
+            updatedAt: new Date()
+        };
+
+        const db = mongoose.connection.db;
+
+        await db.collection('barberDocuments').updateOne(
+            { barberId },
+            { $set: data },
+            { upsert: true }
+        );
+
+        res.json({ success: true, message: 'Documentos guardados' });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Ruta para obtener la documentación de un barbero
+router.get('/barber-documents/:barberId', async (req, res) => {
+    try {
+        const { barberId } = req.params;
+        const db = mongoose.connection.db;
+
+        // Buscamos en la colección que creamos antes
+        const documents = await db.collection('barberDocuments').findOne({ barberId: barberId });
+
+        if (!documents) {
+            return res.status(404).json({ success: false, message: "No se encontraron documentos" });
+        }
+
+        res.json({ success: true, data: documents });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 

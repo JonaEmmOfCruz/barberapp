@@ -1,9 +1,9 @@
+import 'dart:convert'; // Necesario para jsonDecode
+import 'package:http/http.dart' as http; // Necesario para la petición
 import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:barber_app/config/app_config.dart';
 import 'Barber_Profile_Screen.dart';
 
@@ -25,17 +25,43 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
   AppleMapController? _mapController;
   LatLng? _currentLatLng;
 
-  final String baseUrl = AppConfig.baseUrl;
+  final String baseUrl = AppConfig.baseUrl; // Asegúrate que sea http://localhost:3000 o tu IP
 
   String _realAddress = "Obteniendo ubicación...";
   bool _isLoading = true;
   bool _isAvailable = true;
+  
+  // VARIABLE PARA LA IMAGEN
+  String? _profileImageUrl;
 
   @override
   void initState() {
     super.initState();
     _determinePosition();
+    _fetchProfileImage(); // Llamamos a la función al iniciar
   }
+
+  // --- NUEVA FUNCIÓN PARA TRAER LA IMAGEN ---
+  Future<void> _fetchProfileImage() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/upload/barber-documents/${widget.barberId}'),
+      );
+
+      if (response.statusCode == 200) {
+        final res = jsonDecode(response.body);
+        if (res['data'] != null) {
+          setState(() {
+            _profileImageUrl = res['data']['profileImage'];
+          });
+        }
+      }
+    } catch (e) {
+      print("Error obteniendo foto de perfil en Home: $e");
+    }
+  }
+
+  // ... (Tus funciones _determinePosition, _centerMapWithZoom y _updateAvailability se quedan igual)
 
   Future<void> _determinePosition() async {
     setState(() => _isLoading = true);
@@ -93,7 +119,6 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
 
   Future<void> _updateAvailability(bool value) async {
     setState(() => _isAvailable = value);
-    // Aquí puedes implementar la llamada a tu API si existe
   }
 
   @override
@@ -102,6 +127,7 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
+          // ... (Todo el código del AppleMap y SafeArea es el mismo)
           _currentLatLng == null
               ? const Center(
                   child: CircularProgressIndicator(color: Colors.blue),
@@ -127,7 +153,7 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
                   ),
                   child: Row(
                     children: [
-                      _buildBarberAvatar(),
+                      _buildBarberAvatar(), // ESTE YA TIENE LA NUEVA LÓGICA
                       const SizedBox(width: 15),
                       Expanded(
                         child: Column(
@@ -143,7 +169,6 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            // Estado dinámico
                             Row(
                               children: [
                                 Container(
@@ -290,8 +315,9 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
             top: 130,
             child: Column(
               children: [
-                _iconBtn(Icons.person, () {
-                  Navigator.push(
+                _iconBtn(Icons.person, () async {
+                  // Agregamos await para que cuando regrese del perfil, actualice la foto aquí también
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => BarberProfileScreen(
@@ -300,6 +326,7 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
                       ),
                     ),
                   );
+                  _fetchProfileImage(); // Recargar foto al volver
                 }, isCircle: false),
                 const SizedBox(height: 12),
                 _iconBtn(Icons.my_location, _centerMapWithZoom, isCircle: true),
@@ -311,6 +338,7 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
     );
   }
 
+  // --- WIDGET ACTUALIZADO ---
   Widget _buildBarberAvatar() {
     return Container(
       width: 70,
@@ -321,8 +349,18 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
         boxShadow: [
           BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 10),
         ],
+        // Si hay URL, ponemos la imagen de fondo
+        image: _profileImageUrl != null
+            ? DecorationImage(
+                image: NetworkImage('$baseUrl$_profileImageUrl'),
+                fit: BoxFit.cover,
+              )
+            : null,
       ),
-      child: const Center(child: Icon(Icons.cut, size: 35, color: Colors.blue)),
+      // Si NO hay URL, ponemos el icono por defecto
+      child: _profileImageUrl == null
+          ? const Center(child: Icon(Icons.cut, size: 35, color: Colors.blue))
+          : null,
     );
   }
 

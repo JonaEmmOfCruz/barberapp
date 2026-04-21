@@ -16,7 +16,7 @@ class WaitingScreen extends StatefulWidget {
 class _WaitingScreenState extends State<WaitingScreen> {
   Timer? _pollingTimer;
   String _statusMessage = "Buscando barbero cercano...";
-  bool _isLoading = true;
+  final bool _isLoading = true;
 
   @override
   void initState() {

@@ -1,11 +1,10 @@
 import 'dart:io';
-import 'package:barber_app/main.dart';
 import 'package:barber_app/screens/landing_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:barber_app/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:barber_app/screens/landing_screen.dart';
+import 'dart:convert'; 
+import 'package:http/http.dart' as http;
 
 class BarberProfileScreen extends StatefulWidget {
   final String barberId;
@@ -24,22 +23,65 @@ class BarberProfileScreen extends StatefulWidget {
 class _BarberProfileScreenState extends State<BarberProfileScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Datos del formulario originales
+  // Archivos locales para subir
   File? _profileImage;
   File? _licenseImage;
-  String? _vehicleType;
-  String? _vehicleBrand;
-  String? _vehiclePlate;
   File? _vehiclePhoto;
   File? _platePhoto;
 
+  // URLs para mostrar lo guardado en BD
+  String? _profileImageUrl;
+  String? _licenseImageUrl;
+  String? _vehiclePhotoUrl;
+  String? _plateImageUrl;
+
+  // Controladores y variables de estado
+  String? _vehicleType;
+  final TextEditingController _brandController = TextEditingController();
+  final TextEditingController _plateController = TextEditingController();
+
   final picker = ImagePicker();
   bool _isLoading = false;
+  final String baseUrl = "http://localhost:3000"; // Cambiar a 10.0.2.2 si usas Android
 
   final List<String> _vehicleTypes = ['Auto', 'Motocicleta', 'Bicicleta', 'Patinete'];
   bool get _showVehicleDetails => _vehicleType == 'Auto' || _vehicleType == 'Motocicleta';
 
-  // --- FUNCIÓN QUE FALTABA ---
+  @override
+  void initState() {
+    super.initState();
+    _loadBarberData(); // Carga automática al entrar
+  }
+
+  // --- FUNCIÓN PARA CARGAR DATOS CONSISTENTES ---
+  Future<void> _loadBarberData() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/upload/barber-documents/${widget.barberId}'),
+      );
+
+      if (response.statusCode == 200) {
+        final res = jsonDecode(response.body);
+        final data = res['data'];
+
+        setState(() {
+          _vehicleType = data['vehicleType'];
+          _brandController.text = data['vehicleBrand'] ?? '';
+          _plateController.text = data['vehiclePlate'] ?? '';
+          _profileImageUrl = data['profileImage'];
+          _licenseImageUrl = data['licenseImage'];
+          _vehiclePhotoUrl = data['vehiclePhoto'];
+          _plateImageUrl = data['platePhoto'];
+        });
+      }
+    } catch (e) {
+      print("Error al cargar datos: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _pickImage(ImageSource source, Function(File?) setImage) async {
     final pickedFile = await picker.pickImage(source: source);
     if (pickedFile != null) {
@@ -48,8 +90,6 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
       });
     }
   }
-
-  // --- DISEÑO ---
 
   @override
   Widget build(BuildContext context) {
@@ -88,24 +128,25 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
                       label: 'MARCA DEL VEHÍCULO',
                       hint: 'Escribe la marca',
                       icon: Icons.branding_watermark_outlined,
-                      onChanged: (v) => _vehicleBrand = v,
+                      controller: _brandController,
                     ),
                     _buildTextField(
                       label: 'PLACA / MATRÍCULA',
                       hint: '00 00 000',
                       icon: Icons.pin_outlined,
-                      onChanged: (v) => _vehiclePlate = v,
+                      controller: _plateController,
                     ),
                   ],
 
-                  _buildImagePickerStyled('LICENCIA DE CONDUCIR', _licenseImage, Icons.badge_outlined, (f) => _licenseImage = f),
+                  _buildImagePickerStyled('LICENCIA DE CONDUCIR', _licenseImage, _licenseImageUrl, Icons.badge_outlined, (f) => _licenseImage = f),
                   if (_showVehicleDetails) ...[
-                    _buildImagePickerStyled('FOTO DEL VEHÍCULO', _vehiclePhoto, Icons.directions_car, (f) => _vehiclePhoto = f),
-                    _buildImagePickerStyled('FOTO DE LA PLACA', _platePhoto, Icons.camera_alt, (f) => _platePhoto = f),
+                    _buildImagePickerStyled('FOTO DEL VEHÍCULO', _vehiclePhoto, _vehiclePhotoUrl, Icons.directions_car, (f) => _vehiclePhoto = f),
+                    _buildImagePickerStyled('FOTO DE LA PLACA', _platePhoto, _plateImageUrl, Icons.camera_alt, (f) => _platePhoto = f),
                   ],
 
                   const SizedBox(height: 40),
 
+                  // BOTÓN GUARDAR
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -124,25 +165,35 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  ElevatedButton(
-  onPressed: () async {
-    // 1. Borrar sesión
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
 
-    // 2. Ir al login y borrar historial
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => LandingScreen()),
-      (route) => false,
-    );
-  },
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.red,
-  ),
-  child: Text("Cerrar sesión"),
-)
+                  const SizedBox(height: 15),
+
+                  // BOTÓN CERRAR SESIÓN (Mismo tamaño)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.clear();
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (context) => LandingScreen()),
+                          (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      ),
+                      child: const Text(
+                        "Cerrar sesión",
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -155,8 +206,15 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
   // --- WIDGETS AUXILIARES ---
 
   Widget _buildProfileCircle() {
+    ImageProvider? image;
+    if (_profileImage != null) {
+      image = FileImage(_profileImage!);
+    } else if (_profileImageUrl != null) {
+      image = NetworkImage('$baseUrl$_profileImageUrl');
+    }
+
     return GestureDetector(
-      onTap: () => _showImagePickerDialog((f) => _profileImage = f),
+      onTap: () => _showImagePickerDialog((f) => setState(() => _profileImage = f)),
       child: Column(
         children: [
           Container(
@@ -166,10 +224,9 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.blue.shade100, width: 4),
               color: Colors.blue.shade50,
+              image: image != null ? DecorationImage(image: image, fit: BoxFit.cover) : null,
             ),
-            child: _profileImage != null
-                ? ClipRRect(borderRadius: BorderRadius.circular(60), child: Image.file(_profileImage!, fit: BoxFit.cover))
-                : const Icon(Icons.add_a_photo, size: 40, color: Colors.blue),
+            child: image == null ? const Icon(Icons.add_a_photo, size: 40, color: Colors.blue) : null,
           ),
           const SizedBox(height: 10),
           const Text('Editar foto de perfil', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
@@ -191,12 +248,12 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
     );
   }
 
-  Widget _buildTextField({required String label, required String hint, required IconData icon, Function(String)? onChanged}) {
+  Widget _buildTextField({required String label, required String hint, required IconData icon, required TextEditingController controller}) {
     return Column(
       children: [
         _buildSectionLabel(label),
         TextFormField(
-          onChanged: onChanged,
+          controller: controller,
           decoration: _inputDecoration(hint, icon),
         ),
         const SizedBox(height: 20),
@@ -206,19 +263,19 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
 
   Widget _buildDropdown(IconData icon) {
     return DropdownButtonFormField<String>(
-      initialValue: _vehicleType,
+      value: _vehicleType,
       decoration: _inputDecoration('Selecciona tipo', icon),
       items: _vehicleTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
       onChanged: (value) => setState(() => _vehicleType = value),
     );
   }
 
-  Widget _buildImagePickerStyled(String label, File? image, IconData icon, Function(File?) onImagePicked) {
+  Widget _buildImagePickerStyled(String label, File? localFile, String? networkUrl, IconData icon, Function(File?) onImagePicked) {
     return Column(
       children: [
         _buildSectionLabel(label),
         GestureDetector(
-          onTap: () => _showImagePickerDialog(onImagePicked),
+          onTap: () => _showImagePickerDialog((f) => setState(() => onImagePicked(f))),
           child: Container(
             height: 130,
             width: double.infinity,
@@ -227,16 +284,21 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
               borderRadius: BorderRadius.circular(15),
               border: Border.all(color: Colors.blue.shade100, width: 2),
             ),
-            child: image != null
-                ? ClipRRect(borderRadius: BorderRadius.circular(13), child: Image.file(image, fit: BoxFit.cover))
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon, color: Colors.blue.shade200, size: 40),
-                      const SizedBox(height: 8),
-                      Text('Subir imagen', style: TextStyle(color: Colors.blue.shade300, fontSize: 12)),
-                    ],
-                  ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(13),
+              child: localFile != null
+                  ? Image.file(localFile, fit: BoxFit.cover)
+                  : (networkUrl != null)
+                      ? Image.network('$baseUrl$networkUrl', fit: BoxFit.cover)
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(icon, color: Colors.blue.shade200, size: 40),
+                            const SizedBox(height: 8),
+                            Text('Subir imagen', style: TextStyle(color: Colors.blue.shade300, fontSize: 12)),
+                          ],
+                        ),
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -288,10 +350,38 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
 
   Future<void> _submitForm() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() => _isLoading = false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.blue, content: Text('Perfil guardado exitosamente')));
-  }
 
-  
+    try {
+      var uri = Uri.parse('$baseUrl/api/upload/barber-documents');
+      var request = http.MultipartRequest('POST', uri);
+
+      request.fields['barberId'] = widget.barberId;
+      request.fields['vehicleType'] = _vehicleType ?? '';
+      request.fields['vehicleBrand'] = _brandController.text;
+      request.fields['vehiclePlate'] = _plateController.text;
+
+      if (_profileImage != null) request.files.add(await http.MultipartFile.fromPath('profileImage', _profileImage!.path));
+      if (_licenseImage != null) request.files.add(await http.MultipartFile.fromPath('licenseImage', _licenseImage!.path));
+      if (_vehiclePhoto != null) request.files.add(await http.MultipartFile.fromPath('vehiclePhoto', _vehiclePhoto!.path));
+      if (_platePhoto != null) request.files.add(await http.MultipartFile.fromPath('platePhoto', _platePhoto!.path));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(backgroundColor: Colors.green, content: Text('¡Documentación guardada con éxito!'))
+          );
+          _loadBarberData(); // Recarga para mostrar las URLs recién guardadas
+        }
+      } else {
+        print("Error del servidor: ${response.body}");
+      }
+    } catch (e) {
+      print("Error de conexión: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 }
