@@ -10,6 +10,7 @@ const path = require('path');
 */
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
+const barbersRoutes = require('./routes/barbers');
 
 dotenv.config();
 
@@ -29,6 +30,8 @@ app.use(express.urlencoded({extended: true}));
     Archivos estaticos
 */
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use('/api/barbers', barbersRoutes);
 
 /* 
     Configuración de MongoDB según el usuario activo
