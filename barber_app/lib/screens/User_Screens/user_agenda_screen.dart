@@ -5,6 +5,8 @@ import 'package:barber_app/config/app_config.dart';
 // IMPORTACIONES NUEVAS PARA UBICACIÓN
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:barber_app/screens/User_Screens/barber_profile_screen.dart';
+import 'package:barber_app/screens/User_Screens/booking_screen.dart';
 
 class UserAgendaScreen extends StatefulWidget {
   final String userId;
@@ -20,7 +22,7 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
   bool isLoading = true;
 
   final Set<String> _favoritos = {};
-  
+
   // CAMBIO: Variable para almacenar la dirección real
   String _currentAddress = "Obteniendo ubicación...";
 
@@ -32,7 +34,7 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
 
   Future<void> _loadInitialData() async {
     // Iniciamos la obtención de ubicación al cargar
-    _determinePosition(); 
+    _determinePosition();
     await _fetchFavorites();
     await _fetchBarbers();
   }
@@ -161,7 +163,8 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
                   Flexible(
                     child: Text(
                       _currentAddress,
-                      overflow: TextOverflow.ellipsis, // Por si la dirección es muy larga
+                      overflow: TextOverflow
+                          .ellipsis, // Por si la dirección es muy larga
                       style: TextStyle(
                         color: Colors.grey[800],
                         fontWeight: FontWeight.w600,
@@ -210,123 +213,139 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
 
   // ... (Resto del código de _buildBarberCard y _confirmar se mantiene igual)
   Widget _buildBarberCard(dynamic b) {
-    final String name = b['name'] ?? b['nombre'] ?? 'Barbero sin nombre';
+    final String name = b['nombre'] ?? b['name'] ?? 'Barbero sin nombre';
     final String barberId = b['_id'] ?? b['id'] ?? '';
     final bool isFavorite = _favoritos.contains(barberId);
 
-    const String priceRange = "\$0";
-    const String rating = "0";
-    const String distance = "0 km";
+    final String priceRange = b['precio_base']?.toString() ?? "\$0";
+    final String rating = b['rating']?.toString() ?? "0";
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(15),
+    return GestureDetector(
+      // --- NUEVA REDIRECCIÓN AL PERFIL ---
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BarberProfileScreen(
+              barber: b,
+              userId: widget.userId,
             ),
-            child: Icon(Icons.person, size: 50, color: Colors.blue[600]),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.payments, size: 14, color: Colors.blue[700]),
-                    const SizedBox(width: 4),
-                    const Text(
-                      priceRange,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    Icon(Icons.star, size: 14, color: Colors.blue[700]),
-                    const SizedBox(width: 4),
-                    const Text(
-                      rating,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.multiple_stop,
-                      size: 14,
-                      color: Colors.blue[700],
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      distance,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 30,
-                  child: ElevatedButton(
-                    onPressed: () => _confirmar(b),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent[400],
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      "Agendar",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Avatar del Barbero
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.blue[100],
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(Icons.person, size: 50, color: Colors.blue[600]),
+            ),
+            const SizedBox(width: 15),
+            // Información Central
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.payments, size: 14, color: Colors.blue[700]),
+                      const SizedBox(width: 4),
+                      Text(
+                        priceRange,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Icon(Icons.star, size: 14, color: Colors.blue[700]),
+                      const SizedBox(width: 4),
+                      Text(
+                        rating,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // BOTÓN AGENDAR
+                  SizedBox(
+                    height: 30,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BookingScreen(
+                              barber: b,
+                              userId: widget.userId,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent[400],
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        "Agendar",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => _toggleFavorite(b),
-            icon: Icon(
-              isFavorite ? Icons.bookmark : Icons.bookmark_outline,
-              color: Colors.blue[700],
-              size: 30,
+            // Botón de Favoritos
+            IconButton(
+              onPressed: () => _toggleFavorite(b),
+              icon: Icon(
+                isFavorite ? Icons.bookmark : Icons.bookmark_outline,
+                color: Colors.blue[700],
+                size: 30,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

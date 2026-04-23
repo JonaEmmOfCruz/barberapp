@@ -135,3 +135,4 @@ app.listen(PORT, () => {
     Solicitud de servicio usuario
 */
 app.use('/api/service-requests', require('./routes/serviceRequests'));
+app.use('/api/reservas', require('./routes/reservas'));
