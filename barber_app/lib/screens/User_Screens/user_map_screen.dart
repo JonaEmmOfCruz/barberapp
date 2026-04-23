@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -362,7 +364,7 @@ class _UserHomeScreenState extends State<UserMapScreen> {
           ),
           _servicesGrid(),
           const SizedBox(height: 15),
-          
+
           // BOTÓN AÑADIR SERVICIO
           SizedBox(
             width: double.infinity,
@@ -393,7 +395,10 @@ class _UserHomeScreenState extends State<UserMapScreen> {
               List<String> svs = List<String>.from(entry.value['servicios']);
               return Container(
                 margin: const EdgeInsets.only(bottom: 5),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(8),
@@ -407,9 +412,14 @@ class _UserHomeScreenState extends State<UserMapScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
-                      onPressed: () => setState(() => _finalServiceList.removeAt(idx)),
-                    )
+                      icon: const Icon(
+                        Icons.remove_circle_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      onPressed: () =>
+                          setState(() => _finalServiceList.removeAt(idx)),
+                    ),
                   ],
                 ),
               );
@@ -636,24 +646,77 @@ class _UserHomeScreenState extends State<UserMapScreen> {
       margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
       height: 65,
       decoration: BoxDecoration(
-        color: Colors.white,
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 25,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(Icons.home_filled, "Inicio", true),
-          _buildNavItem(Icons.description, "Servicios", false),
-          _buildNavItem(Icons.storefront, "Tienda", false),
-          _buildNavItem(Icons.person, "Perfil", false),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(25),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(25),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.black.withOpacity(0.2),
+                  Colors.white.withOpacity(0.1),
+                ],
+              ),
+              border: Border.all(
+                width: 1.2,
+                color: Colors.white.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Inicio: Podrías usarlo para centrar el mapa o cerrar paneles
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isExpanded = false;
+                    });
+                    _centerMapWithZoom();
+                  },
+                  child: _buildNavItem(Icons.home_filled, "Inicio", true),
+                ),
+
+                GestureDetector(
+                  onTap: () => /* Navegar a Servicios */ {},
+                  child: _buildNavItem(Icons.description, "Servicios", false),
+                ),
+
+                GestureDetector(
+                  onTap: () => /* Navegar a Tienda */ {},
+                  child: _buildNavItem(Icons.storefront, "Tienda", false),
+                ),
+
+                // PERFIL: Redirección funcional
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserPerfilScreen(),
+                      ),
+                    ).then(
+                      (_) => _loadUserPhoto(),
+                    ); // Recarga la foto al volver
+                  },
+                  child: _buildNavItem(Icons.person, "Perfil", false),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -664,15 +727,17 @@ class _UserHomeScreenState extends State<UserMapScreen> {
       children: [
         Icon(
           icon,
-          size: 22,
-          color: isSelected ? Colors.blue[600] : Colors.grey[400],
+          size: 24,
+          // Blanco puro si está seleccionado, blanco traslúcido si no
+          color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
         ),
         const SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(
             fontSize: 10,
-            color: isSelected ? Colors.blue[600] : Colors.grey[400],
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
           ),
         ),
       ],

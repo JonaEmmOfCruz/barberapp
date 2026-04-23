@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:ui';
+import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_shop_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -9,6 +12,7 @@ import 'dart:convert';
 
 import 'package:barber_app/screens/User_Screens/user_map_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_agenda_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 import 'package:barber_app/config/app_config.dart';
 
 class UserHomeScreen extends StatefulWidget {
@@ -288,24 +292,81 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
         height: 65,
         decoration: BoxDecoration(
-          color: Colors.white,
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
+              color: Colors.blue[900]!.withOpacity(0.15),
+              blurRadius: 30,
+              offset: const Offset(0, 15),
             ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(Icons.home_filled, "Inicio", true),
-            _buildNavItem(Icons.description, "Servicios", false),
-            _buildNavItem(Icons.storefront, "Tienda", false),
-            _buildNavItem(Icons.person, "Perfil", false),
-          ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(25),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.3),
+                    Colors.white.withOpacity(0.1),
+                  ],
+                ),
+                border: Border.all(
+                  width: 1.5,
+                  color: Colors.white.withOpacity(0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  GestureDetector(
+                    onTap: () => /* Ya estás en Inicio */ {},
+                    child: _buildNavItem(Icons.home_filled, "Inicio", true),
+                  ),
+                  // --- BOTÓN SERVICIOS ACTUALIZADO ---
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserServicesScreen(),
+                        ),
+                      );
+                    },
+                    child: _buildNavItem(Icons.description, "Servicios", false),
+                  ),
+                  // ----------------------------------
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserShopScreen(),
+                        ),
+                      );
+                    },
+                    child: _buildNavItem(Icons.storefront, "Tienda", false),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserPerfilScreen(),
+                        ),
+                      );
+                    },
+                    child: _buildNavItem(Icons.person, "Perfil", false),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
