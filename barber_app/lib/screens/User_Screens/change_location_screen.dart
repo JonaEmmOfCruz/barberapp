@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
-// Asegúrate de importar la pantalla de mapa para el retroceso si es necesario, 
-// aunque Navigator.pop suele ser suficiente.
+import 'package:geocoding/geocoding.dart'; 
 import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 
 class ChangeLocationScreen extends StatefulWidget {
@@ -20,191 +19,194 @@ class ChangeLocationScreen extends StatefulWidget {
 
 class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
   late String _currentAddress;
+  late LatLng _currentLatLng;
   final TextEditingController _addressController = TextEditingController();
+  AppleMapController? _mapController;
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _currentAddress = widget.initialAddress;
+    _currentLatLng = widget.initialLocation ?? const LatLng(20.7203, -103.3855);
+    _addressController.text = _currentAddress;
   }
 
-  // Widget para los items del menú inferior
-  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          size: 22,
-          color: isSelected ? Colors.blue[600] : Colors.grey[400],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.blue[600] : Colors.grey[400],
-          ),
-        ),
-      ],
-    );
+  // 1. BUSCAR POR TEXTO (Geocoding)
+  Future<void> _searchAddressFromText() async {
+    final query = _addressController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() => _isSearching = true);
+
+    try {
+      List<Location> locations = await locationFromAddress(query);
+      
+      if (locations.isNotEmpty) {
+        final newLatLng = LatLng(locations.first.latitude, locations.first.longitude);
+        
+        setState(() {
+          _currentLatLng = newLatLng;
+          _currentAddress = query;
+        });
+
+        // Movemos la cámara a la ubicación encontrada
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(newLatLng, 17), // Zoom más cercano para precisión
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No se pudo encontrar esa dirección")),
+      );
+    } finally {
+      setState(() => _isSearching = false);
+    }
+  }
+
+  // 2. OBTENER TEXTO DESDE COORDENADAS (Reverse Geocoding)
+  // Se llama cuando el usuario deja de mover el mapa
+  Future<void> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude, 
+        position.longitude
+      );
+      
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        // Formateamos una dirección legible
+        String newAddr = "${place.street}, ${place.locality}";
+        setState(() {
+          _currentAddress = newAddr;
+          _addressController.text = newAddr;
+          _currentLatLng = position;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error en reverse geocoding: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Permite que el mapa se extienda detrás de la barra de navegación
       extendBody: true,
       body: Stack(
         children: [
-          // 1. MAPA OCUPANDO TODO EL FONDO
+          // MAPA
           Positioned.fill(
             child: AppleMap(
               initialCameraPosition: CameraPosition(
-                target: widget.initialLocation ?? const LatLng(20.7203, -103.3855),
+                target: _currentLatLng,
                 zoom: 15,
               ),
+              onMapCreated: (controller) => _mapController = controller,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
+              // Detectamos cuando la cámara se mueve
+              onCameraMove: (CameraPosition position) {
+                _currentLatLng = position.target;
+              },
+              // Cuando el usuario suelta el mapa, actualizamos la dirección de texto
+              onCameraIdle: () {
+                _getAddressFromLatLng(_currentLatLng);
+              },
             ),
           ),
 
-          // 2. HEADER (Flecha de regreso + Usuario con redirección)
+          // PIN DE UBICACIÓN CENTRAL (ESTÁTICO)
+          // Este es el "Icono de location" que el usuario usa para apuntar
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40), // Ajuste para que la punta del pin sea el centro
+              child: Icon(
+                Icons.location_on,
+                size: 50,
+                color: Colors.blue[800],
+              ),
+            ),
+          ),
+
+          // HEADER
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 10.0),
+              padding: const EdgeInsets.all(15.0),
               child: Row(
                 children: [
-                  // FLECHA DE REGRESO
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 5),
-                  // CONTENEDOR DE USUARIO
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserPerfilScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 10)
-                        ],
-                      ),
-                      child: Icon(Icons.person, color: Colors.blue[700], size: 28),
+                  CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        "Usuario",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        "Ingresa tu dirección",
-                        style: TextStyle(
-                          color: Colors.black.withOpacity(0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 15),
+                  const Text(
+                    "Seleccionar Ubicación",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                 ],
               ),
             ),
           ),
 
-          // 3. BOTÓN PARA CENTRAR UBICACIÓN
-          Positioned(
-            right: 20,
-            top: MediaQuery.of(context).size.height * 0.35,
-            child: Container(
-              width: 45,
-              height: 45,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-              ),
-              child: Icon(Icons.my_location, color: Colors.blue[600], size: 22),
-            ),
-          ),
-
-          // 4. WIDGET DE UBICACIÓN (Separado del menú inferior)
+          // PANEL DE BÚSQUEDA Y CONFIRMACIÓN
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              margin: const EdgeInsets.only(bottom: 110, left: 20, right: 20),
+              margin: const EdgeInsets.only(bottom: 120, left: 20, right: 20),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 20, spreadRadius: 2),
-                ],
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Ubicación:",
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, color: Colors.blue[600], size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _currentAddress,
-                          style: const TextStyle(fontSize: 13, color: Colors.black87),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
+                  // Buscador de dirección
                   TextField(
                     controller: _addressController,
                     decoration: InputDecoration(
-                      hintText: "Nueva dirección...",
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                      hintText: "Ingresa dirección (Calle, ciudad...)",
+                      prefixIcon: const Icon(Icons.map_outlined),
+                      suffixIcon: _isSearching 
+                        ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                        : IconButton(
+                            icon: const Icon(Icons.search, color: Colors.blue),
+                            onPressed: _searchAddressFromText,
+                          ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
+                  // Botón de Confirmación
                   SizedBox(
                     width: double.infinity,
-                    height: 48,
+                    height: 55,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, _addressController.text),
+                      onPressed: () {
+                        // Devolvemos el objeto exacto que requiere tu backend/ServiceRequest
+                        Navigator.pop(context, {
+                          'direccion': _currentAddress,
+                          'lat': _currentLatLng.latitude,
+                          'lng': _currentLatLng.longitude,
+                        });
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[600],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        backgroundColor: Colors.blue[700],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        elevation: 0,
                       ),
                       child: const Text(
-                        "CONFIRMAR",
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        "CONFIRMAR ESTA UBICACIÓN",
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -214,32 +216,39 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: _customBottomNav(),
+    );
+  }
 
-      // 5. MENÚ INFERIOR FLOTANTE PERSONALIZADO
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
-        height: 65,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(Icons.home_filled, "Inicio", true),
-            _buildNavItem(Icons.description, "Servicios", false),
-            _buildNavItem(Icons.storefront, "Tienda", false),
-            _buildNavItem(Icons.person, "Perfil", false),
-          ],
-        ),
+  Widget _customBottomNav() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
+      height: 65,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, 5))],
       ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildNavItem(Icons.home_filled, "Inicio", true),
+          _buildNavItem(Icons.description, "Servicios", false),
+          _buildNavItem(Icons.storefront, "Tienda", false),
+          _buildNavItem(Icons.person, "Perfil", false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 22, color: isSelected ? Colors.blue[600] : Colors.grey[400]),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 10, color: isSelected ? Colors.blue[600] : Colors.grey[400])),
+      ],
     );
   }
 }

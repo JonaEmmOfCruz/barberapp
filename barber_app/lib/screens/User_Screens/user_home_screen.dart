@@ -88,17 +88,55 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 
   Future<void> _determineRealPosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
     try {
+      // 1. Verificar si el GPS del celular está encendido
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _realAddress = "Por favor activa tu GPS");
+        return;
+      }
+
+      // 2. Verificar el estado de los permisos
+      permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        // AQUÍ es donde el iPhone mostrará el mensaje del Info.plist
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _realAddress = "Permiso de ubicación denegado");
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _realAddress = "Habilita la ubicación en Ajustes");
+        return;
+      }
+
+      // 3. Si todo está bien, obtenemos la posición
+      // Nota: A veces 'high' tarda mucho en interiores, puedes usar 'medium' para pruebas rápidas
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
+      // 4. Convertir coordenadas a dirección (Geocoding)
       List<Placemark> p = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
-      setState(() => _realAddress = "${p[0].street}, ${p[0].locality}");
+
+      if (p.isNotEmpty) {
+        Placemark place = p[0];
+        setState(() {
+          _realAddress = "${place.street}, ${place.locality}";
+        });
+      }
     } catch (e) {
-      setState(() => _realAddress = "Ubicación no disponible");
+      print("Error detallado: $e");
+      setState(() => _realAddress = "Error al obtener ubicación");
     }
   }
 

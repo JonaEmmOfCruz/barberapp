@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:barber_app/config/app_config.dart';
+// IMPORTACIONES NUEVAS PARA UBICACIÓN
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class UserAgendaScreen extends StatefulWidget {
   final String userId;
@@ -17,7 +20,9 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
   bool isLoading = true;
 
   final Set<String> _favoritos = {};
-  final String _currentAddress = "Ubicación actual";
+  
+  // CAMBIO: Variable para almacenar la dirección real
+  String _currentAddress = "Obteniendo ubicación...";
 
   @override
   void initState() {
@@ -25,13 +30,50 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
     _loadInitialData();
   }
 
-  // Carga primero tus favoritos y luego todos los barberos
   Future<void> _loadInitialData() async {
+    // Iniciamos la obtención de ubicación al cargar
+    _determinePosition(); 
     await _fetchFavorites();
     await _fetchBarbers();
   }
 
-  // Trae de la DB los que ya tienes marcados como favoritos
+  // NUEVA FUNCIÓN: Obtiene las coordenadas y las convierte a dirección (Calle, Ciudad)
+  Future<void> _determinePosition() async {
+    try {
+      // 1. Verificar/Solicitar permisos
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _currentAddress = "Permiso denegado");
+          return;
+        }
+      }
+
+      // 2. Obtener posición actual
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // 3. Convertir coordenadas a dirección legible
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        setState(() {
+          // Formato: Calle, Localidad
+          _currentAddress = "${place.street}, ${place.locality}";
+        });
+      }
+    } catch (e) {
+      setState(() => _currentAddress = "Ubicación no disponible");
+      print("Error obteniendo ubicación: $e");
+    }
+  }
+
   Future<void> _fetchFavorites() async {
     try {
       final res = await http.get(
@@ -66,9 +108,6 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
     }
   }
 
-  // --- LÓGICA REAL PARA AGREGAR/QUITAR FAVORITOS CON EL BACKEND ---
-  // --- DENTRO DE _UserAgendaScreenState ---
-
   Future<void> _toggleFavorite(dynamic barbero) async {
     final String barberId = barbero['_id'] ?? barbero['id'] ?? '';
     final bool isFavorite = _favoritos.contains(barberId);
@@ -88,7 +127,6 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
         await http.post(url, headers: headers, body: body);
       }
     } catch (e) {
-      // Revertir en caso de error
       setState(() {
         isFavorite ? _favoritos.add(barberId) : _favoritos.remove(barberId);
       });
@@ -119,12 +157,16 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
                 children: [
                   Icon(Icons.location_on, color: Colors.blue[700], size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    _currentAddress,
-                    style: TextStyle(
-                      color: Colors.grey[800],
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                  // MUESTRA LA DIRECCIÓN REAL ACTUALIZADA
+                  Flexible(
+                    child: Text(
+                      _currentAddress,
+                      overflow: TextOverflow.ellipsis, // Por si la dirección es muy larga
+                      style: TextStyle(
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -166,6 +208,7 @@ class _UserAgendaScreenState extends State<UserAgendaScreen> {
     );
   }
 
+  // ... (Resto del código de _buildBarberCard y _confirmar se mantiene igual)
   Widget _buildBarberCard(dynamic b) {
     final String name = b['name'] ?? b['nombre'] ?? 'Barbero sin nombre';
     final String barberId = b['_id'] ?? b['id'] ?? '';
