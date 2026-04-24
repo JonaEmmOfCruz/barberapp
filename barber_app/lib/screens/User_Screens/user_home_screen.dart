@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_shop_screen.dart';
 import 'package:flutter/material.dart';
@@ -325,42 +326,51 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   GestureDetector(
-                    onTap: () => /* Ya estás en Inicio */ {},
+                    onTap: () {},
                     child: _buildNavItem(Icons.home_filled, "Inicio", true),
                   ),
-                  // --- BOTÓN SERVICIOS ACTUALIZADO ---
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserServicesScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserServicesScreen(),
+                      ),
+                    ),
                     child: _buildNavItem(Icons.description, "Servicios", false),
                   ),
-                  // ----------------------------------
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserShopScreen(),
-                        ),
-                      );
-                    },
-                    child: _buildNavItem(Icons.storefront, "Tienda", false),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            UserReservationsScreen(userId: widget.userId),
+                      ),
+                    ),
+                    child: _buildNavItem(
+                      Icons.calendar_month,
+                      "Reservas",
+                      false,
+                    ),
                   ),
+
+                  // --- OPCIÓN TIENDA COMENTADA ---
+                  /*
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UserShopScreen()),
+              ),
+              child: _buildNavItem(Icons.storefront, "Tienda", false),
+            ),
+            */
+                  // -------------------------------
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserPerfilScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const UserPerfilScreen(),
+                      ),
+                    ),
                     child: _buildNavItem(Icons.person, "Perfil", false),
                   ),
                 ],
@@ -447,6 +457,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Widget _buildBarberCard(dynamic b) {
     final String barberName = b['name'] ?? b['nombre'] ?? 'Barbero';
+    final String barberId = b['_id'] ?? b['id'] ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -465,14 +476,58 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             child: b['photo'] == null ? const Icon(Icons.person) : null,
           ),
           const SizedBox(width: 15),
-          Text(barberName, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const Spacer(),
+          // 1. ENVOLVEMOS EL NOMBRE EN EXPANDED PARA EVITAR EL DESBORDE
+          Expanded(
+            child: Text(
+              barberName,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              overflow: TextOverflow
+                  .ellipsis, // Si el nombre es muy largo, pone "..."
+            ),
+          ),
+          // 2. QUITAMOS EL SPACER (ya que Expanded ocupa todo el espacio medio)
+
+          // --- BOTÓN PARA QUITAR DE FAVORITOS ---
+          IconButton(
+            icon: const Icon(Icons.favorite, color: Colors.red, size: 24),
+            onPressed: () => _removeFavorite(barberId),
+            constraints:
+                const BoxConstraints(), // Reduce el espacio interno del icono
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+
           ElevatedButton(
             onPressed: _navigateToAgenda,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+              ), // Botón un poco más compacto
+            ),
             child: const Text("Agendar"),
           ),
         ],
       ),
     );
+  }
+
+  // NUEVA FUNCIÓN PARA ELIMINAR
+  Future<void> _removeFavorite(String barberId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/api/barbers/favorite'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userId': widget.userId, 'barberId': barberId}),
+      );
+
+      if (res.statusCode == 200) {
+        // Recargamos la lista localmente para que desaparezca de inmediato
+        _fetchBarberosFavoritos();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Eliminado de favoritos")));
+      }
+    } catch (e) {
+      print("Error al eliminar favorito: $e");
+    }
   }
 }

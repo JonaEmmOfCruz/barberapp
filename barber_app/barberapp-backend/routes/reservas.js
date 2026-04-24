@@ -1,6 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const Appointment = require('../models/reservas'); // Asegúrate de que la ruta al modelo sea correcta
+const Barbero = require('../models/Barbero');
+
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log("Buscando reservas para el usuario:", userId);
+
+    // Buscamos las reservas que coincidan con el userId
+    const reservas = await Appointment.find({ userId: userId })
+      .populate({
+        path: 'barberId',
+        model: 'Barbero', // Forzamos el uso del modelo 'Barbero' que tienes definido
+        select: 'nombre'
+      })
+      .sort({ fecha: -1 }); // Ordenar: las más nuevas primero
+
+    console.log("Reservas encontradas:", reservas.length);
+    res.status(200).json(reservas);
+  } catch (error) {
+    console.error("Error al obtener reservas del usuario:", error);
+    res.status(500).json({ error: 'Error interno al obtener las reservas' });
+  }
+});
 
 router.post('/create', async (req, res) => {
   console.log("Datos recibidos para reserva:", req.body);

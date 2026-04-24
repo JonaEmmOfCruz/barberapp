@@ -3,15 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
 
 class ChangeLocationScreen extends StatefulWidget {
   final String initialAddress;
   final LatLng? initialLocation;
+  final String? userId;
 
   const ChangeLocationScreen({
     super.key,
     required this.initialAddress,
     this.initialLocation,
+    this.userId,
   });
 
   @override
@@ -33,48 +37,30 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
     _addressController.text = _currentAddress;
   }
 
-  // 1. BUSCAR POR TEXTO (Geocoding)
   Future<void> _searchAddressFromText() async {
     final query = _addressController.text.trim();
     if (query.isEmpty) return;
-
     setState(() => _isSearching = true);
-
     try {
       List<Location> locations = await locationFromAddress(query);
-
       if (locations.isNotEmpty) {
-        final newLatLng = LatLng(
-          locations.first.latitude,
-          locations.first.longitude,
-        );
-
+        final newLatLng = LatLng(locations.first.latitude, locations.first.longitude);
         setState(() {
           _currentLatLng = newLatLng;
           _currentAddress = query;
         });
-
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(newLatLng, 17),
-        );
+        _mapController?.animateCamera(CameraUpdate.newLatLngZoom(newLatLng, 17));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No se pudo encontrar esa dirección")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dirección no encontrada")));
     } finally {
       setState(() => _isSearching = false);
     }
   }
 
-  // 2. OBTENER TEXTO DESDE COORDENADAS (Reverse Geocoding)
   Future<void> _getAddressFromLatLng(LatLng position) async {
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         String newAddr = "${place.street}, ${place.locality}";
@@ -85,32 +71,25 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
         });
       }
     } catch (e) {
-      debugPrint("Error en reverse geocoding: $e");
+      debugPrint("Error reverse geocoding: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true, // Vital para el efecto Glassmorphism
+      extendBody: true,
       body: Stack(
         children: [
           // MAPA
           Positioned.fill(
             child: AppleMap(
-              initialCameraPosition: CameraPosition(
-                target: _currentLatLng,
-                zoom: 15,
-              ),
+              initialCameraPosition: CameraPosition(target: _currentLatLng, zoom: 15),
               onMapCreated: (controller) => _mapController = controller,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
-              onCameraMove: (CameraPosition position) {
-                _currentLatLng = position.target;
-              },
-              onCameraIdle: () {
-                _getAddressFromLatLng(_currentLatLng);
-              },
+              onCameraMove: (pos) => _currentLatLng = pos.target,
+              onCameraIdle: () => _getAddressFromLatLng(_currentLatLng),
             ),
           ),
 
@@ -118,7 +97,7 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 40),
-              child: Icon(Icons.location_on, size: 50, color: Colors.blue[800]),
+              child: Icon(Icons.location_on, size: 50, color: Colors.blue[700]),
             ),
           ),
 
@@ -128,18 +107,9 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
               padding: const EdgeInsets.all(15.0),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
+                  _circleBtn(Icons.arrow_back_ios_new, () => Navigator.pop(context)),
                   const SizedBox(width: 15),
-                  const Text(
-                    "Seleccionar Ubicación",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                  ),
+                  const Text("Ubicación", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black)),
                 ],
               ),
             ),
@@ -149,14 +119,12 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              margin: const EdgeInsets.only(bottom: 120, left: 20, right: 20),
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 125),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -164,47 +132,23 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
                   TextField(
                     controller: _addressController,
                     decoration: InputDecoration(
-                      hintText: "Ingresa dirección...",
-                      prefixIcon: const Icon(Icons.map_outlined),
-                      suffixIcon: _isSearching
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.search, color: Colors.blue),
-                              onPressed: _searchAddressFromText,
-                            ),
+                      hintText: "Buscar dirección...",
+                      prefixIcon: const Icon(Icons.search, color: Colors.blue),
                       filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
+                      fillColor: const Color(0xFFF2F2F7),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                     ),
+                    onSubmitted: (_) => _searchAddressFromText(),
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context, {
-                          'direccion': _currentAddress,
-                          'lat': _currentLatLng.latitude,
-                          'lng': _currentLatLng.longitude,
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        "CONFIRMAR ESTA UBICACIÓN",
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                  const SizedBox(height: 15),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, {'direccion': _currentAddress, 'lat': _currentLatLng.latitude, 'lng': _currentLatLng.longitude}),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     ),
+                    child: const Text("CONFIRMAR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -216,19 +160,20 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
     );
   }
 
+  Widget _circleBtn(IconData icon, VoidCallback onTap) {
+    return Container(
+      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+      child: IconButton(icon: Icon(icon, size: 18, color: Colors.black), onPressed: onTap),
+    );
+  }
+
   Widget _customBottomNav() {
     return Container(
       margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
       height: 65,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 25, offset: const Offset(0, 10))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(25),
@@ -240,15 +185,9 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.black.withOpacity(0.2),
-                  Colors.white.withOpacity(0.1),
-                ],
+                colors: [Colors.black.withOpacity(0.2), Colors.white.withOpacity(0.1)],
               ),
-              border: Border.all(
-                width: 1.2,
-                color: Colors.white.withOpacity(0.2),
-              ),
+              border: Border.all(width: 1.2, color: Colors.white.withOpacity(0.2)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -258,20 +197,19 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
                   child: _buildNavItem(Icons.home_filled, "Inicio", true),
                 ),
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserServicesScreen())),
                   child: _buildNavItem(Icons.description, "Servicios", false),
                 ),
                 GestureDetector(
-                  onTap: () {},
-                  child: _buildNavItem(Icons.storefront, "Tienda", false),
+                  onTap: () {
+                    if (widget.userId != null) {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserReservationsScreen(userId: widget.userId!)));
+                    }
+                  },
+                  child: _buildNavItem(Icons.calendar_month, "Reservas", false),
                 ),
                 GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const UserPerfilScreen()),
-                    );
-                  },
+                  onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserPerfilScreen())),
                   child: _buildNavItem(Icons.person, "Perfil", false),
                 ),
               ],
@@ -285,6 +223,7 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
   Widget _buildNavItem(IconData icon, String label, bool isSelected) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
           icon,
@@ -296,6 +235,7 @@ class _ChangeLocationScreenState extends State<ChangeLocationScreen> {
           label,
           style: TextStyle(
             fontSize: 10,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
           ),
         ),

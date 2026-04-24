@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:apple_maps_flutter/apple_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -641,6 +643,7 @@ class _UserHomeScreenState extends State<UserMapScreen> {
     );
   }
 
+  // Sustituye tu método _customBottomNav por este:
   Widget _customBottomNav() {
     return Container(
       margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
@@ -649,9 +652,9 @@ class _UserHomeScreenState extends State<UserMapScreen> {
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
+            color: Colors.blue[900]!.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
           ),
         ],
       ),
@@ -666,19 +669,19 @@ class _UserHomeScreenState extends State<UserMapScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.black.withOpacity(0.2),
+                  Colors.white.withOpacity(0.3),
                   Colors.white.withOpacity(0.1),
                 ],
               ),
               border: Border.all(
-                width: 1.2,
-                color: Colors.white.withOpacity(0.2),
+                width: 1.5,
+                color: Colors.white.withOpacity(0.4),
               ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Inicio: Podrías usarlo para centrar el mapa o cerrar paneles
+                // INICIO (Actual)
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -689,17 +692,41 @@ class _UserHomeScreenState extends State<UserMapScreen> {
                   child: _buildNavItem(Icons.home_filled, "Inicio", true),
                 ),
 
+                // SERVICIOS
                 GestureDetector(
-                  onTap: () => /* Navegar a Servicios */ {},
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const UserServicesScreen(), // Asegúrate de tener este import
+                    ),
+                  ),
                   child: _buildNavItem(Icons.description, "Servicios", false),
                 ),
 
+                // RESERVAS
                 GestureDetector(
-                  onTap: () => /* Navegar a Tienda */ {},
-                  child: _buildNavItem(Icons.storefront, "Tienda", false),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          UserReservationsScreen(userId: widget.userId),
+                    ),
+                  ),
+                  child: _buildNavItem(Icons.calendar_month, "Reservas", false),
                 ),
 
-                // PERFIL: Redirección funcional
+                /* --- TIENDA COMENTADA ---
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UserShopScreen()),
+                  ),
+                  child: _buildNavItem(Icons.storefront, "Tienda", false),
+                ),
+                ------------------------ */
+
+                // PERFIL
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -707,9 +734,7 @@ class _UserHomeScreenState extends State<UserMapScreen> {
                       MaterialPageRoute(
                         builder: (context) => const UserPerfilScreen(),
                       ),
-                    ).then(
-                      (_) => _loadUserPhoto(),
-                    ); // Recarga la foto al volver
+                    ).then((_) => _loadUserPhoto());
                   },
                   child: _buildNavItem(Icons.person, "Perfil", false),
                 ),
@@ -720,6 +745,9 @@ class _UserHomeScreenState extends State<UserMapScreen> {
       ),
     );
   }
+
+  // Sustituye tu _buildNavItem por este (para que los colores coincidan con el resto de la app):
+  
 
   Widget _buildNavItem(IconData icon, String label, bool isSelected) {
     return Column(

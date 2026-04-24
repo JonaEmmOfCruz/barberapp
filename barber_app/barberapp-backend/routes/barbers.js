@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const Barbero = require('../models/Barbero');
+const Favorite = require('../models/Favorite');
 
 // GET: /api/barbers (Tu ruta original)
 router.get('/', async (req, res) => {
@@ -63,5 +64,36 @@ router.delete('/favorite', async (req, res) => {
     res.status(500).json({ message: "Error al quitar de favoritos" });
   }
 });
+
+// Obtener la lista de barberos favoritos de un usuario
+router.get('/favorites/:userId', async (req, res) => {
+  try {
+    const favorites = await Favorite.find({ userId: req.params.userId }).populate('barberId');
+    // Mapeamos para devolver solo los datos del barbero
+    const barberos = favorites.map(f => f.barberId);
+    res.json(barberos);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Guardar o quitar un favorito (Toggle)
+router.post('/favorite', async (req, res) => {
+  const { userId, barberId } = req.body;
+  try {
+    const exists = await Favorite.findOne({ userId, barberId });
+    if (exists) {
+      await Favorite.findByIdAndDelete(exists._id);
+      return res.json({ message: "Eliminado de favoritos", isFavorite: false });
+    }
+    const newFav = new Favorite({ userId, barberId });
+    await newFav.save();
+    res.json({ message: "Agregado a favoritos", isFavorite: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = router;
 
 module.exports = router;

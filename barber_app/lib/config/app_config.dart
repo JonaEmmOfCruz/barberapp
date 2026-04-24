@@ -11,6 +11,6 @@ class AppConfig {
   // static const int port = 3000;
   
    //Para desarrollo en simulador iOS, usa localhost
-   static const String ipAddress = '192.168.100.113';
+   static const String ipAddress = '192.168.100.4';
    static const int port = 3000;
 }

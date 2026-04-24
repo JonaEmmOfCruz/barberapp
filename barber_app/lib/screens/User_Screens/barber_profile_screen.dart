@@ -1,5 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:barber_app/screens/User_Screens/booking_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_home_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
+import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 
 class BarberProfileScreen extends StatelessWidget {
   final dynamic barber;
@@ -13,251 +18,230 @@ class BarberProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Extracción de datos reales según la imagen del modelo en MongoDB
+    // Extracción de datos según el modelo de MongoDB
     final String name = barber['nombre'] ?? 'Sin nombre';
     final List<dynamic> servicios = barber['servicios'] ?? [];
     final List<dynamic> diasDisponibles = barber['dias'] ?? [];
     final Map<String, dynamic>? horario = barber['horario'];
-
-    // Estos campos no aparecen en tu captura de modelo de MongoDB actual
-    // Por lo tanto, se manejarán como nulos o listas vacías.
     final dynamic vehiculo = barber['vehiculo'];
     final Map<String, dynamic>? redes = barber['redes_sociales'];
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Perfil del barbero",
-          style: TextStyle(color: Colors.grey, fontSize: 14),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header: Avatar y Nombre
-            Row(
-              children: [
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(Icons.person, size: 45, color: Colors.blue[600]),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        servicios.isNotEmpty
-                            ? servicios.join(", ")
-                            : "Servicios no especificados",
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            const Text(
-              "Servicios hechos por mi:",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 15),
-
-            // Sección de Galería (Vacía por ahora como solicitaste)
-            const Center(
+      extendBody: true, // Crucial para el menú flotante
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // --- BOTÓN REGRESAR ---
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text(
-                  "No hay galería disponible",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                padding: const EdgeInsets.only(left: 15, top: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 20),
-            const Text(
-              "Horarios y Disponibilidad:",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 10),
-
-            // Días de la semana desde el Array 'dias' de la DB
-            if (diasDisponibles.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildTag(
-                  Icons.calendar_month,
-                  "${diasDisponibles.first} - ${diasDisponibles.last}",
-                ),
-              ),
-
-            // Horas desde el objeto 'horario' de la DB
-            if (horario != null)
-              _buildTag(
-                Icons.access_time_filled,
-                "${horario['apertura']} - ${horario['cierre']}",
-              ),
-
-            // Solo mostrar sección de vehículo si existe en la data
-            if (vehiculo != null) ...[
-              const SizedBox(height: 25),
-              const Text(
-                "Vehículo:",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (vehiculo['marca'] != null)
-                    _buildTag(Icons.directions_car, vehiculo['marca']),
-                  if (vehiculo['matricula'] != null)
-                    _buildTag(Icons.credit_card, vehiculo['matricula']),
-                ],
-              ),
-            ],
-
-            // Solo mostrar redes sociales si existen en la data
-            if (redes != null) ...[
-              const SizedBox(height: 25),
-              const Text(
-                "Redes Sociales:",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                children: redes.entries.map((entry) {
-                  return _buildSocialTag(
-                    _getIconForSocial(entry.key),
-                    entry.value,
-                    Colors.black87,
-                  );
-                }).toList(),
-              ),
-            ],
-
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: () {
-                  // --- REDIRECCIÓN A BOOKING SCREEN ---
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => BookingScreen(
-                        barber: barber, // Pasamos el mapa del barbero
-                        userId: userId, // Pasamos el ID del usuario
+            // --- TÍTULO ESTILO SLIVER APPLE ---
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(30, 10, 30, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Perfil del Barbero",
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF1D1D1F),
+                        letterSpacing: -1.5,
                       ),
                     ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  "RESERVAR SERVICIO",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 50,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF007AFF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 40),
+
+            // --- CONTENIDO DEL PERFIL ---
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // Header: Avatar y Nombre (Estilo Cards de Reservas)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF2F2F7),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(Icons.person_rounded, size: 50, color: Color(0xFF007AFF)),
+                        ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1D1D1F)),
+                              ),
+                              Text(
+                                servicios.isNotEmpty ? servicios.join(", ") : "Servicios no especificados",
+                                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 35),
+
+                  const Text("Especialidades y Horarios:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1D1D1F))),
+                  const SizedBox(height: 15),
+                  
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      if (diasDisponibles.isNotEmpty)
+                        _buildAppleTag(Icons.calendar_month_rounded, "${diasDisponibles.first} - ${diasDisponibles.last}"),
+                      if (horario != null)
+                        _buildAppleTag(Icons.access_time_filled_rounded, "${horario['apertura']} - ${horario['cierre']}"),
+                    ],
+                  ),
+
+                  const SizedBox(height: 35),
+                  const Text("Galería de trabajos:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1D1D1F))),
+                  const SizedBox(height: 10),
+                  const Text("Próximamente fotos de los cortes realizados.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+
+                  if (vehiculo != null) ...[
+                    const SizedBox(height: 35),
+                    const Text("Información del Vehículo:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    const SizedBox(height: 15),
+                    _buildAppleTag(Icons.directions_car_rounded, "${vehiculo['marca']} • ${vehiculo['matricula']}"),
+                  ],
+
+                  const SizedBox(height: 45),
+                  // BOTÓN RESERVAR ESTILO APPLE
+                  ElevatedButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BookingScreen(barber: barber, userId: userId))),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF007AFF),
+                      minimumSize: const Size(double.infinity, 60),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      elevation: 0,
+                    ),
+                    child: const Text("RESERVAR SERVICIO", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  const SizedBox(height: 120), // Espacio para el menú
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _customBottomNav(),
+    );
+  }
+
+  // --- WIDGETS DE APOYO ---
+
+  Widget _buildAppleTag(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F7),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF007AFF)),
+          const SizedBox(width: 8),
+          Text(text, style: const TextStyle(fontSize: 14, color: Color(0xFF1D1D1F), fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _customBottomNav() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
+      height: 65,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [BoxShadow(color: const Color(0xFF007AFF).withOpacity(0.12), blurRadius: 30, offset: const Offset(0, 15))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(25),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(25),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.white.withOpacity(0.4), Colors.white.withOpacity(0.2)],
+              ),
+              border: Border.all(width: 1.5, color: Colors.white.withOpacity(0.5)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(Icons.home_filled, "Inicio", false, (ctx) => Navigator.pop(ctx)),
+                _buildNavItem(Icons.description, "Servicios", false, (ctx) => Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => const UserServicesScreen()))),
+                _buildNavItem(Icons.calendar_month, "Reservas", false, (ctx) => Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => UserReservationsScreen(userId: userId)))),
+                _buildNavItem(Icons.person, "Perfil", true, (ctx) {}),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, bool isSelected, Function(BuildContext) onTap) {
+    return Builder(
+      builder: (context) => GestureDetector(
+        onTap: () => onTap(context),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 24, color: isSelected ? const Color(0xFF007AFF) : Colors.black.withOpacity(0.3)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? const Color(0xFF007AFF) : Colors.black.withOpacity(0.3))),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildTag(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.blue[700]),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.blue[800],
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSocialTag(IconData icon, String user, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Text(
-            user,
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getIconForSocial(String key) {
-    switch (key.toLowerCase()) {
-      case 'facebook':
-        return Icons.facebook;
-      case 'instagram':
-        return Icons.camera_alt;
-      default:
-        return Icons.link;
-    }
   }
 }
