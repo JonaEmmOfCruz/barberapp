@@ -1,23 +1,21 @@
-// server.js - VERSIÓN CORREGIDA
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
-/* 
-    Importar rutas 
-*/
+// 1. IMPORTAR RUTAS (Enfoque Barbero)
+const disponibilidadRoutes = require('./routes/barberDisponibilidad');
+const serviceRoutes = require('./routes/barberServiceRoute'); 
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
+const serviceRequests = require('./routes/serviceRequests');
+const appointmentRoutes = require('./routes/barberAppointments');
 
 dotenv.config();
-
 const app = express();
 
-/* 
-    Middleware 
-*/
+// 2. MIDDLEWARES
 app.use(cors({
     origin: '*',
     credentials: true
@@ -25,94 +23,46 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
-/* 
-    Archivos estaticos
-*/
+// Archivos estáticos para fotos de cortes/perfil
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-/* 
-    Configuración de MongoDB según el usuario activo
-*/
+// 3. CONFIGURACIÓN DE MONGODB (Tu lógica multi-DB)
 const getMongoConfig = () => {
     const activeUser = process.env.ACTIVE_USER || '1';
-    console.log('ACTIVE_USER desde env:', activeUser);
-
     if (activeUser === '1') {
-        return {
-            uri: process.env.USER1_MONGO_URI,
-            user: process.env.USER1_NAME
-        };
+        return { uri: process.env.USER1_MONGO_URI, user: process.env.USER1_NAME };
     } else if (activeUser === '2') {
-        return {
-            uri: process.env.USER2_MONGO_URI,
-            user: process.env.USER2_NAME
-        };
+        return { uri: process.env.USER2_MONGO_URI, user: process.env.USER2_NAME };
     } else {
-        return {
-            uri: process.env.USER3_MONGO_URI,
-            user: process.env.USER3_NAME
-        };
+        return { uri: process.env.USER3_MONGO_URI, user: process.env.USER3_NAME };
     }
 };
 
-/* 
-    Conexion con MongoDB
-*/
 const connectDB = async () => {
     try {
         const dbConfig = getMongoConfig();
-        
         console.log('=================================');
-        console.log(`📱 Intentando conectar a MongoDB Atlas`);
-        console.log(`👤 Usuario: ${dbConfig.user}`);
-        console.log(`🔗 URI: ${dbConfig.uri.replace(/:[^:]*@/, ':****@')}`);
-        console.log('=================================');
-        
+        console.log(`👤 Usuario Activo: ${dbConfig.user}`);
         await mongoose.connect(dbConfig.uri);
-        
-        console.log('✅ Conectado exitosamente a MongoDB Atlas');
-        console.log(`📀 Base de datos: ${mongoose.connection.name}`);
-        
-        mongoose.connection.on('error', err => {
-            console.error('❌ Error en la conexión de MongoDB:', err);
-        });
-        
-        mongoose.connection.on('disconnected', () => {
-            console.log('⚠️ Desconectado de MongoDB');
-        });
-        
+        console.log('✅ Conectado exitosamente a MongoDB');
+        console.log('=================================');
     } catch (error) {
-        console.error('❌ Error al conectar a MongoDB Atlas:');
-        console.error('   Nombre:', error.name);
-        console.error('   Mensaje:', error.message);
+        console.error('❌ Error de conexión:', error.message);
         process.exit(1);
     }
 };
 
 connectDB();
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-/* 
-    Rutas
-*/
+// 4. DEFINICIÓN DE RUTAS (API)
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/servicios', serviceRoutes); // Lógica de ganancias y tiempos del barbero
+app.use('/api/service-requests', serviceRequests);
+app.use('/api/disponibilidad', disponibilidadRoutes);
+app.use('/api/citas', appointmentRoutes);
 
-/* 
-    Ruta de verificacion de los usuarios activos
-*/
-app.get('/api/config/active-user', (req, res) => {
-    const dbConfig = getMongoConfig();
-    res.json({
-        activeUser: process.env.ACTIVE_USER || '1',
-        user: dbConfig.user
-    });
-});
-
-/* 
-    Rutas de prueba
-*/
+// Ruta de prueba
 app.get('/', (req, res) => {
     res.json({
         message: 'Api de BarberApp funcionando',
@@ -121,14 +71,9 @@ app.get('/', (req, res) => {
     });
 });
 
+// 5. ENCENDER SERVIDOR (Una sola vez)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en el puerto: ${PORT}`);
-    console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 URL: http://localhost:${PORT}`);
 });
-
-/* 
-    Solicitud de servicio usuario
-*/
-app.use('/api/service-requests', require('./routes/serviceRequests'));

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:barber_app/screens/Main_Screens/landing_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,11 +10,14 @@ import 'package:http/http.dart' as http;
 class BarberProfileScreen extends StatefulWidget {
   final String barberId;
   final String barberName;
+  final VoidCallback onBack;
+  
 
   const BarberProfileScreen({
     super.key,
     required this.barberId,
     required this.barberName,
+     required this.onBack,
   });
 
   @override
@@ -22,6 +26,9 @@ class BarberProfileScreen extends StatefulWidget {
 
 class _BarberProfileScreenState extends State<BarberProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+   
+  static const String _macIp = "192.168.100.19";
+  late String baseUrl;
 
   // Archivos locales para subir
   File? _profileImage;
@@ -42,17 +49,33 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
 
   final picker = ImagePicker();
   bool _isLoading = false;
-  final String baseUrl = "http://localhost:3000"; // Cambiar a 10.0.2.2 si usas Android
+ 
 
-  final List<String> _vehicleTypes = ['Auto', 'Motocicleta', 'Bicicleta', 'Patinete'];
+  final List<String> _vehicleTypes = ['Auto', 'Motocicleta', 'Bicicleta', 'Patín Electrico'];
   bool get _showVehicleDetails => _vehicleType == 'Auto' || _vehicleType == 'Motocicleta';
 
   @override
   void initState() {
     super.initState();
+    
+    baseUrl = _getServerUrl();
     _loadBarberData(); // Carga automática al entrar
   }
 
+  static String _getServerUrl() {
+    if (kIsWeb) return "http://localhost:3000";
+
+    if (Platform.isAndroid) {
+      return "http://10.0.2.2:3000"; // Simulador Android
+    } else if (Platform.isIOS) {
+      // Si el código detecta que es iOS, usa la IP de tu Mac 
+      // Esto funciona tanto en el simulador como en el celular físico.
+      return "http://$_macIp:3000";
+    }
+
+    return "http://localhost:3000";
+  }
+  
   // --- FUNCIÓN PARA CARGAR DATOS CONSISTENTES ---
   Future<void> _loadBarberData() async {
     setState(() => _isLoading = true);
@@ -100,7 +123,10 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
         backgroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.blue, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+ 
+  widget.onBack();
+},
         ),
         title: const Text(
           'Perfil',
@@ -263,7 +289,7 @@ class _BarberProfileScreenState extends State<BarberProfileScreen> {
 
   Widget _buildDropdown(IconData icon) {
     return DropdownButtonFormField<String>(
-      value: _vehicleType,
+      initialValue: _vehicleType,
       decoration: _inputDecoration('Selecciona tipo', icon),
       items: _vehicleTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
       onChanged: (value) => setState(() => _vehicleType = value),
