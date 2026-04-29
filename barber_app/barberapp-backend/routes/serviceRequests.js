@@ -50,4 +50,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/user/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        console.log("🔍 Buscando servicios para el usuario ID:", userId);
+
+        // Buscamos en la colección usando el campo userId
+        // .sort({ createdAt: -1 }) sirve para que los más nuevos aparezcan primero
+        const requests = await ServiceRequest.find({ userId: userId }).sort({ createdAt: -1 });
+
+        console.log(`✅ Se encontraron ${requests.length} solicitudes.`);
+        res.json(requests);
+    } catch (error) {
+        console.error("❌ Error al obtener servicios:", error);
+        res.status(500).json({ error: 'Error al obtener los servicios del usuario' });
+    }
+});
+
 module.exports = router;

@@ -1,21 +1,22 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 
 const serviceRequestSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        require: true
+        required: true // Corregido 'require' por 'required'
     },
 
     tipoServicioGeneral: {
         type: String,
         enum: ['propio', 'segundo'],
-        require: true
+        required: true // Corregido 'require' por 'required'
     },
 
     servicios: [{
         type: String,
-        enum: ['Corte', 'Barba', 'Tinte', 'Combo', 'Cejas']
+        // He sincronizado estos valores con los nombres exactos de tu Flutter
+        enum: ['Corte', 'Barba', 'Ceja', 'Greka', 'Tinte', 'Combo']
     }],
 
     ubicacion: {
