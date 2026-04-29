@@ -408,7 +408,7 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
         'fecha':      dia.fecha,
         'inicioHora': _formatHora(inicioHora),
         'finHora':    _formatHora(finHora),
-        if (descanso != null) 'descanso': descanso,
+        'descanso': ?descanso,
       };
 
       final res = await http.post(
