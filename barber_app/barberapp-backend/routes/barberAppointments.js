@@ -18,4 +18,7 @@ router.get('/barbero/:barberId', appointmentController.getCitasBarbero);
 // Responder solicitud de cita (aceptar / rechazar / reagendar)
 router.put('/:idCita/responder', appointmentController.responderSolicitud);
 
+
+router.get('/barbero/:barberId/pendientes', appointmentController.getPendientes);
+
 module.exports = router;

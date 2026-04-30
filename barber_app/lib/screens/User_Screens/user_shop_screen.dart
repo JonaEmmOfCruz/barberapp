@@ -4,7 +4,6 @@ import 'package:barber_app/models/cart_item.dart';
 import 'user_cart_screen.dart';
 
 // Importaciones de tus otras pantallas
-import 'package:barber_app/screens/User_Screens/user_home_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 

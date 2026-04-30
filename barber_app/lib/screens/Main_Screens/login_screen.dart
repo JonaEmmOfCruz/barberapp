@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
 import '../../services/auth_service.dart';
+import '../../config/app_config.dart';
 import '../User_Screens/user_home_screen.dart';
 import '../Barber_Screens/barber_home_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../Barber_Screens/Barber_Profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,12 +17,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _identifierController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isPasswordVisible = false;
-  final bool _isBarber = false;
-  bool _isLoading = false;
+  final _formKey                = GlobalKey<FormState>();
+  final _identifierController   = TextEditingController();
+  final _passwordController     = TextEditingController();
+  bool _isPasswordVisible       = false;
+  bool _isLoading               = false;
 
   @override
   void dispose() {
@@ -38,73 +41,133 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    String identifier = _identifierController.text.trim();
+    final identifier = _identifierController.text.trim();
 
-    // Usar loginUnified que detecta automáticamente si es usuario o barbero
     final result = await AuthService.loginUnified(
       identifier: identifier,
-      password: _passwordController.text,
+      password:   _passwordController.text,
     );
 
-    if (context.mounted) {
-      Navigator.pop(context);
+    if (!context.mounted) return;
+    Navigator.pop(context); // cierra el loading
 
-      if (result['success']) {
-        String userId = result['userId'] ?? '';
-        String userName =
-            result['userName'] ?? 'Usuario'; // Nuevo: obtener nombre
-        bool isBarber = result['isBarber'] ?? false;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userId', userId);
+    if (result['success']) {
+      final String userId   = result['userId'] ?? '';
+      final String userName = result['userName'] ?? 'Usuario';
+      final bool isBarber   = result['isBarber'] ?? false;
 
-        // 1. Guardamos la imagen que viene del servidor (si existe)
-        if (result['user'] != null && result['user']['profileImage'] != null) {
-          await prefs.setString('profileImage', result['user']['profileImage']);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userId', userId);
+
+      if (result['user'] != null && result['user']['profileImage'] != null) {
+        await prefs.setString('profileImage', result['user']['profileImage']);
+      }
+
+      if (!context.mounted) return;
+
+      if (isBarber) {
+        // ── Verificar si el perfil del barbero está completo ──────────
+        bool perfilCompleto = false;
+        List<String> camposFaltantes = [];
+
+        try {
+          final statusRes = await http.get(
+            Uri.parse('${AppConfig.baseUrl}/api/upload/barber-profile-status/$userId'),
+          );
+          if (statusRes.statusCode == 200) {
+            final statusData = json.decode(statusRes.body);
+            perfilCompleto   = statusData['perfilCompleto'] ?? false;
+            camposFaltantes  = List<String>.from(statusData['camposFaltantes'] ?? []);
+          }
+        } catch (e) {
+          debugPrint('Error verificando perfil: $e');
+          // Si falla la verificación, dejamos pasar al Home
+          perfilCompleto = true;
         }
 
-        print(
-          'Login exitoso - UserId: $userId, Nombre: $userName, Tipo: ${isBarber ? "BARBERO" : "USUARIO"}',
-        );
+        if (!context.mounted) return;
 
-        if (isBarber) {
+        if (perfilCompleto) {
+          // Perfil completo → Home
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (_) => BarberHomeScreen(
-                barberId: userId,
+                barberId:   userId,
                 barberName: userName,
-              ), // Si quieres pasar nombre, modifica BarberHomeScreen
+              ),
             ),
           );
         } else {
+          // Perfil incompleto → Pantalla de perfil con mensaje
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Completa tu perfil para continuar. Faltan: ${_traducirCampos(camposFaltantes)}',
+              ),
+              backgroundColor: const Color(0xFFE8202A),
+              behavior:        SnackBarBehavior.floating,
+              duration:        const Duration(seconds: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => UserHomeScreen(
-                userId: userId,
-                userName: userName, // Pasamos el nombre
+              builder: (_) => BarberProfileScreen(
+                barberId:   userId,
+                barberName: userName,
+                onBack:     () {},
               ),
             ),
           );
         }
-      } else {
-        String errorMessage = result['message'] ?? 'Error al iniciar sesión';
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+      } else {
+        // Usuario normal → Home de usuario
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserHomeScreen(
+              userId:   userId,
+              userName: userName,
             ),
           ),
         );
       }
+
+    } else {
+      // Login fallido
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:         Text(result['message'] ?? 'Error al iniciar sesión'),
+          backgroundColor: Colors.red,
+          behavior:        SnackBarBehavior.floating,
+          duration:        const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
     }
 
     setState(() => _isLoading = false);
+  }
+
+  // Traduce los nombres de campos técnicos a texto legible
+  String _traducirCampos(List<String> campos) {
+    const Map<String, String> traducciones = {
+      'profileImage': 'foto de perfil',
+      'vehicleType':  'tipo de vehículo',
+      'vehicleBrand': 'marca del vehículo',
+      'vehiclePlate': 'placas',
+      'licenseImage': 'licencia de conducir',
+    };
+    return campos
+        .map((c) => traducciones[c] ?? c)
+        .join(', ');
   }
 
   @override
@@ -115,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
           icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        elevation: 0,
+        elevation:       0,
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.text,
       ),
@@ -132,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   'Bienvenido',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w300,
+                    fontWeight:    FontWeight.w300,
                     letterSpacing: 1.5,
                   ),
                 ),
@@ -142,48 +205,42 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(
                   'Ingresa tu nombre de usuario o correo',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary.withOpacity(0.8),
-                    fontWeight: FontWeight.w300,
+                    color:         AppColors.textSecondary.withOpacity(0.8),
+                    fontWeight:    FontWeight.w300,
                   ),
                 ),
 
                 const SizedBox(height: 48),
 
-                // Campo de Usuario/Email
+                // ── Campo usuario/email ──────────────────────────────
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'NOMBRE DE USUARIO O CORREO',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w500,
+                      fontWeight:    FontWeight.w500,
                       letterSpacing: 1.2,
-                      color: AppColors.textSecondary,
+                      color:         AppColors.textSecondary,
                     ),
                   ),
                 ),
                 Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.1),
-                      width: 1,
-                    ),
+                      color: AppColors.primary.withOpacity(0.1), width: 1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextFormField(
-                    controller: _identifierController,
+                    controller:   _identifierController,
                     keyboardType: TextInputType.text,
                     style: TextStyle(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w400,
-                    ),
+                      color: AppColors.text, fontWeight: FontWeight.w400),
                     decoration: const InputDecoration(
                       hintText: 'Ingresa tu usuario o correo registrado',
                       hintStyle: TextStyle(fontWeight: FontWeight.w300),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 18,
-                      ),
+                        horizontal: 20, vertical: 18),
                       prefixIcon: Icon(Icons.person_outline, size: 20),
                     ),
                     validator: (value) {
@@ -197,41 +254,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // Campo de Contraseña
+                // ── Campo contraseña ─────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'CONTRASEÑA',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w500,
+                      fontWeight:    FontWeight.w500,
                       letterSpacing: 1.2,
-                      color: AppColors.textSecondary,
+                      color:         AppColors.textSecondary,
                     ),
                   ),
                 ),
                 Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.1),
-                      width: 1,
-                    ),
+                      color: AppColors.primary.withOpacity(0.1), width: 1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextFormField(
-                    controller: _passwordController,
+                    controller:  _passwordController,
                     obscureText: !_isPasswordVisible,
                     style: TextStyle(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w400,
-                    ),
+                      color: AppColors.text, fontWeight: FontWeight.w400),
                     decoration: InputDecoration(
-                      hintText: '••••••••',
+                      hintText:  '••••••••',
                       hintStyle: const TextStyle(fontWeight: FontWeight.w300),
-                      border: InputBorder.none,
+                      border:    InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 18,
-                      ),
+                        horizontal: 20, vertical: 18),
                       prefixIcon: const Icon(Icons.lock_outlined, size: 20),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -240,11 +291,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               : Icons.visibility_outlined,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _isPasswordVisible = !_isPasswordVisible;
-                          });
-                        },
+                        onPressed: () => setState(
+                          () => _isPasswordVisible = !_isPasswordVisible),
                       ),
                     ),
                     validator: (value) {
@@ -261,34 +309,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 40),
 
-                // Botón de inicio de sesión
+                // ── Botón iniciar sesión ─────────────────────────────
                 SizedBox(
-                  width: double.infinity,
+                  width:  double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.secondary,
                       foregroundColor: Colors.white,
-                      elevation: 0,
+                      elevation:       0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                        borderRadius: BorderRadius.circular(12)),
                       textStyle: Theme.of(context).textTheme.labelLarge
                           ?.copyWith(
-                            fontWeight: FontWeight.w500,
+                            fontWeight:    FontWeight.w500,
                             letterSpacing: 1.2,
                           ),
                     ),
                     onPressed: _isLoading ? null : _handleLogin,
                     child: _isLoading
                         ? const SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 20, height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                                Colors.white),
                             ),
                           )
                         : const Text('INICIAR SESIÓN'),

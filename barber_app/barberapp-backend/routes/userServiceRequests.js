@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const ServiceRequest = require('../models/ServiceRequest')
+const ServiceRequest = require('../models/userServiceRequest')
 
 router.post('/', async (req, res) => {
     try {
@@ -64,6 +64,55 @@ router.get('/user/:userId', async (req, res) => {
     } catch (error) {
         console.error("❌ Error al obtener servicios:", error);
         res.status(500).json({ error: 'Error al obtener los servicios del usuario' });
+    }
+});
+router.get('/user/:userId/historial', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const mongoose   = require('mongoose');
+        const db         = mongoose.connection.db;
+
+        // Solicitudes Runner
+        const requests = await ServiceRequest.find({ userId }).sort({ createdAt: -1 });
+        const runner = requests.map(r => ({
+            _id:          r._id,
+            tipo:         'runner',
+            servicios:    r.servicios,
+            status:       r.estado,
+            barberoNombre: r.barberoNombre ?? 'No asignado',
+            createdAt:    r.fechaCreacion,
+        }));
+
+        // Reservas agendadas
+        const reservas = await db.collection('userReservas').find({
+            userId: new mongoose.Types.ObjectId(userId)
+        }).sort({ createdAt: -1 }).toArray();
+
+        const agendadas = await Promise.all(reservas.map(async (r) => {
+            const barbero = await db.collection('barberos').findOne(
+                { _id: r.barberId },
+                { projection: { nombre: 1 } }
+            );
+            return {
+                _id:           r._id,
+                tipo:          'agendada',
+                servicios:     r.servicios,
+                status:        r.status,
+                barberoNombre: barbero?.nombre ?? 'Barbero',
+                fecha:         r.fecha,
+                hora:          r.hora,
+                createdAt:     r.createdAt,
+            };
+        }));
+
+        // Combinar y ordenar por fecha
+        const historial = [...runner, ...agendadas].sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+
+        res.json(historial);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener historial' });
     }
 });
 

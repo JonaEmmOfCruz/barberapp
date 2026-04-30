@@ -507,6 +507,81 @@ router.put('/update-user', async (req, res) => {
     }
 });
 
+// PUT /api/auth/update-barber
+router.put('/update-barber', async (req, res) => {
+  try {
+    const { barberId, nombre, telefono, passwordActual, passwordNueva } = req.body;
+
+    if (!barberId) {
+      return res.status(400).json({ success: false, message: 'Falta barberId' });
+    }
+
+    const db         = mongoose.connection.db;
+    const collection = db.collection('barberos');
+    const { ObjectId } = require('mongodb');
+
+    const barbero = await collection.findOne({ _id: new ObjectId(barberId) });
+    if (!barbero) {
+      return res.status(404).json({ success: false, message: 'Barbero no encontrado' });
+    }
+
+    const $set = {};
+
+    // Actualizar nombre con límite de 2 cambios cada 6 meses
+    if (nombre && nombre !== barbero.nombre) {
+      const cambios        = barbero.cambiosNombre ?? 0;
+      const ultimoCambio   = barbero.ultimoCambioNombre
+          ? new Date(barbero.ultimoCambioNombre) : null;
+      const mesesTranscurridos = ultimoCambio
+          ? (Date.now() - ultimoCambio.getTime()) / (1000 * 60 * 60 * 24 * 30)
+          : 999;
+
+      if (cambios >= 2 && mesesTranscurridos < 6) {
+        return res.status(400).json({
+          success: false,
+          message: `Puedes cambiar tu nombre en ${Math.ceil(6 - mesesTranscurridos)} meses`
+        });
+      }
+
+      $set.nombre              = nombre;
+      $set.cambiosNombre       = mesesTranscurridos >= 6 ? 1 : cambios + 1;
+      $set.ultimoCambioNombre  = new Date();
+    }
+
+    // Actualizar teléfono
+    if (telefono) $set.telefono = telefono;
+
+    // Cambiar contraseña
+    if (passwordActual && passwordNueva) {
+      if (passwordActual !== barbero.password) {
+        return res.status(401).json({
+          success: false,
+          message: 'La contraseña actual es incorrecta'
+        });
+      }
+      if (passwordNueva.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'La nueva contraseña debe tener al menos 6 caracteres'
+        });
+      }
+      $set.password = passwordNueva;
+    }
+
+    if (Object.keys($set).length === 0) {
+      return res.status(400).json({ success: false, message: 'No hay cambios que guardar' });
+    }
+
+    await collection.updateOne({ _id: new ObjectId(barberId) }, { $set });
+
+    res.status(200).json({ success: true, message: 'Perfil actualizado' });
+
+  } catch (error) {
+    console.error('Error update-barber:', error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+});
+
 
 
 module.exports = router;

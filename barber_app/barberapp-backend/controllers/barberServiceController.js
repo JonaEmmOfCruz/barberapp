@@ -135,6 +135,33 @@ exports.getStats = async (req, res) => {
       status: 'finalizada'
     }).sort({ createdAt: -1 }).lean();
 
+    // ── Reservas agendadas completadas (userReservas) ─────────────
+const db = require('mongoose').connection.db;
+const listaReservas = await db.collection('userReservas').find({
+    barberId: barberObjectId,
+    status:   'completada',
+    createdAt: { $gte: fechaFiltro }
+}).sort({ createdAt: -1 }).toArray();
+
+// Enriquecer con nombre del cliente
+const listaReservasNormalizada = await Promise.all(
+    listaReservas.map(async (r) => {
+        const cliente = await db.collection('users').findOne(
+            { _id: r.userId },
+            { projection: { nombre: 1 } }
+        );
+        return {
+            _id:           r._id,
+            tipo:          'Cita',
+            servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Cita agendada',
+            ganancia:      0,
+            duracionMin:   0,
+            fecha:         r.createdAt ?? new Date(),
+            clienteNombre: cliente?.nombre ?? 'Cliente',
+        };
+    })
+);
+
     // Normalizamos los campos para que Flutter reciba estructura uniforme
     const historialNormalizado = [
       ...listaRunner.map(s => ({
@@ -156,7 +183,8 @@ exports.getStats = async (req, res) => {
                           : 0,
         fecha:          a.createdAt,
         clienteNombre:  a.clienteNombre ?? null
-      }))
+      })),
+      ...listaReservasNormalizada
     ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // más reciente primero
 
     res.status(200).json({

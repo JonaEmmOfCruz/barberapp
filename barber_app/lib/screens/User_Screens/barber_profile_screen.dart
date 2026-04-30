@@ -1,10 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:barber_app/screens/User_Screens/booking_screen.dart';
-import 'package:barber_app/screens/User_Screens/user_home_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
-import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 
 class BarberProfileScreen extends StatelessWidget {
   final dynamic barber;

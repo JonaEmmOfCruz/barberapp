@@ -57,5 +57,12 @@
 		<string>comgooglemaps</string>
 	</array>
 
+		<key>NSLocationWhenInUseUsageDescription</key>
+<string>Necesitamos tu ubicación para mostrarte en el mapa</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>Necesitamos tu ubicación para el modo Runner</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>Necesitamos tu ubicación para conectarte con clientes</string>
+
 </dict>
 </plist>

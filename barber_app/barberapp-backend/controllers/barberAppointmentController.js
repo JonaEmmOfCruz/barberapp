@@ -3,9 +3,27 @@ const Barber = require('../models/barberos');
 const AgendaSlot = require('../models/barberAgendaSlot');
 const mongoose = require('mongoose');
 
-// ─────────────────────────────────────────────
-//  LO QUE YA TENÍAS — SIN CAMBIOS
-// ─────────────────────────────────────────────
+
+
+// ── Helper: calcular distancia con Google Directions API ──────────
+async function calcularDistancia(origenLat, origenLng, destinoLat, destinoLng) {
+    try {
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origenLat},${origenLng}&destination=${destinoLat},${destinoLng}&key=${apiKey}`;
+        
+        const response = await fetch(url);
+        const data     = await response.json();
+        
+        if (data.status === 'OK' && data.routes.length > 0) {
+            const distanciaMetros = data.routes[0].legs[0].distance.value;
+            return Math.round(distanciaMetros / 100) / 10; // km con 1 decimal
+        }
+        return null;
+    } catch (e) {
+        console.error('Error Google Directions:', e);
+        return null;
+    }
+}
 
 exports.startTrip = async (req, res) => {
     try {
@@ -72,39 +90,57 @@ exports.finishService = async (req, res) => {
 exports.getCitasBarbero = async (req, res) => {
     try {
         const { barberId } = req.params;
-        const { fecha } = req.query;
+        const { fecha }    = req.query;
 
         if (!fecha) {
             return res.status(400).json({ success: false, msg: 'Falta el parámetro fecha' });
         }
 
-        // Convertimos la fecha a rango de inicio y fin del día
-        const inicioDia = new Date(`${fecha}T00:00:00.000Z`);
-        const finDia    = new Date(`${fecha}T23:59:59.999Z`);
+        const db = require('mongoose').connection.db;
 
-        const citas = await Appointment.find({
+        const reservas = await db.collection('userReservas').find({
             barberId: new mongoose.Types.ObjectId(barberId),
-            horaProgramada: { $gte: inicioDia, $lte: finDia },
-            status: { $in: ['aceptada', 'en_camino', 'en_proceso', 'finalizada'] }
-        }).sort({ horaProgramada: 1 });
+            fecha:    fecha,
+            status: { $in: ['aceptada', 'en_camino', 'en_proceso'] }
+        }).sort({ hora: 1 }).toArray();
 
-        // Normalizamos para Flutter
-        const citasNormalizadas = citas.map(c => ({
-            _id:           c._id,
-            clienteNombre: c.clienteNombre ?? 'Cliente',
-            clienteFoto:   null, // se agrega cuando tengas la colección de usuarios
-            domicilio:     c.domicilio ?? '',
-            distanciaKm:   null, // se calcula con Google Directions cuando el barbero abre la cita
-            servicios:     'Cita agendada', // se actualiza cuando el modelo tenga el campo
-            hora:          c.horaProgramada
-                ? new Date(c.horaProgramada).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
-                : '',
-            fecha:         fecha,
-            precioTotal:   c.precioTotal ?? 0,
-            status:        c.status,
-            lat:           c.lat ?? null,
-            lng:           c.lng ?? null,
-        }));
+        // Obtener ubicación actual del barbero
+        const barberoDoc = await db.collection('barberos').findOne(
+            { _id: new mongoose.Types.ObjectId(barberId) },
+            { projection: { lastLocation: 1 } }
+        );
+        const barberoLat = barberoDoc?.lastLocation?.lat;
+        const barberoLng = barberoDoc?.lastLocation?.lng;
+
+        const citasNormalizadas = await Promise.all(
+            reservas.map(async (r) => {
+                const cliente = await db.collection('users').findOne(
+                    { _id: r.userId },
+                    { projection: { nombre: 1 } }
+                );
+
+                // Calcular distancia si tenemos las coordenadas
+                let distanciaKm = null;
+                if (barberoLat && barberoLng && r.lat && r.lng) {
+                    distanciaKm = await calcularDistancia(barberoLat, barberoLng, r.lat, r.lng);
+                }
+
+                return {
+                    _id:           r._id,
+                    clienteNombre: cliente?.nombre ?? 'Cliente',
+                    clienteFoto:   null,
+                    domicilio:     r.domicilio ?? '',
+                    distanciaKm,
+                    servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Cita agendada',
+                    hora:          r.hora,
+                    fecha:         r.fecha,
+                    precioTotal:   0,
+                    status:        r.status,
+                    lat:           r.lat ?? null,
+                    lng:           r.lng ?? null,
+                };
+            })
+        );
 
         res.status(200).json({
             success: true,
@@ -131,95 +167,123 @@ exports.responderSolicitud = async (req, res) => {
         const { idCita } = req.params;
         const { accion, nuevaHora, nuevaFecha } = req.body;
 
-        if (!['aceptar', 'rechazar', 'reagendar'].includes(accion)) {
+        if (!['aceptar', 'rechazar', 'reagendar', 'llegar', 'finalizar'].includes(accion)) {
             return res.status(400).json({ success: false, msg: 'Acción inválida' });
         }
 
-        const cita = await Appointment.findById(idCita);
-        if (!cita) return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
+        const db = require('mongoose').connection.db;
+        const reserva = await db.collection('userReservas').findOne({
+            _id: new mongoose.Types.ObjectId(idCita)
+        });
+
+        if (!reserva) {
+            return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
+        }
 
         if (accion === 'aceptar') {
-            // Marcamos la cita como aceptada
-            cita.status = 'aceptada';
-            await cita.save();
-
-            // Marcamos el slot como ocupado en agendaSlots
-            if (cita.horaProgramada) {
-                const fecha = cita.horaProgramada.toISOString().split('T')[0];
-                const hora  = cita.horaProgramada.toLocaleTimeString('es-MX', {
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                });
-                await AgendaSlot.findOneAndUpdate(
-                    { barberId: cita.barberId, fecha, hora },
-                    { $set: { status: 'ocupado', appointmentId: cita._id, clientId: cita.clientId } }
-                );
-            }
-
-            res.status(200).json({ success: true, msg: 'Cita aceptada', cita });
+            await db.collection('userReservas').updateOne(
+                { _id: reserva._id },
+                { $set: { status: 'aceptada' } }
+            );
+            res.status(200).json({ success: true, msg: 'Cita aceptada' });
 
         } else if (accion === 'rechazar') {
-            cita.status = 'rechazada';
-            await cita.save();
-
-            // Liberamos el slot
-            if (cita.horaProgramada) {
-                const fecha = cita.horaProgramada.toISOString().split('T')[0];
-                const hora  = cita.horaProgramada.toLocaleTimeString('es-MX', {
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                });
-                await AgendaSlot.findOneAndUpdate(
-                    { barberId: cita.barberId, fecha, hora },
-                    { $set: { status: 'disponible', appointmentId: null, clientId: null } }
-                );
-            }
-
-            res.status(200).json({ success: true, msg: 'Cita rechazada', cita });
+            await db.collection('userReservas').updateOne(
+                { _id: reserva._id },
+                { $set: { status: 'rechazada' } }
+            );
+            await AgendaSlot.findOneAndUpdate(
+                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
+                { $set: { status: 'disponible', appointmentId: null, clientId: null } }
+            );
+            res.status(200).json({ success: true, msg: 'Cita rechazada' });
 
         } else if (accion === 'reagendar') {
             if (!nuevaHora || !nuevaFecha) {
-                return res.status(400).json({ success: false, msg: 'Falta nuevaHora o nuevaFecha para reagendar' });
+                return res.status(400).json({ success: false, msg: 'Falta nuevaHora o nuevaFecha' });
             }
-
-            // Verificamos que el nuevo slot esté disponible
             const slotNuevo = await AgendaSlot.findOne({
-                barberId: cita.barberId,
+                barberId: reserva.barberId,
                 fecha:    nuevaFecha,
                 hora:     nuevaHora,
                 status:   'disponible'
             });
-
             if (!slotNuevo) {
                 return res.status(400).json({ success: false, msg: 'El horario propuesto no está disponible' });
             }
-
-            // Liberamos el slot anterior
-            if (cita.horaProgramada) {
-                const fechaAnterior = cita.horaProgramada.toISOString().split('T')[0];
-                const horaAnterior  = cita.horaProgramada.toLocaleTimeString('es-MX', {
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                });
-                await AgendaSlot.findOneAndUpdate(
-                    { barberId: cita.barberId, fecha: fechaAnterior, hora: horaAnterior },
-                    { $set: { status: 'disponible', appointmentId: null, clientId: null } }
-                );
-            }
-
-            // Actualizamos la cita con la nueva hora
-            const nuevaHoraProgramada = new Date(`${nuevaFecha}T${nuevaHora}:00.000Z`);
-            cita.horaProgramada = nuevaHoraProgramada;
-            cita.status = 'reagendada'; // el cliente verá esto como "propuesta de cambio"
-            await cita.save();
-
-            // Ocupamos el nuevo slot
+            await AgendaSlot.findOneAndUpdate(
+                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
+                { $set: { status: 'disponible', appointmentId: null, clientId: null } }
+            );
+            await db.collection('userReservas').updateOne(
+                { _id: reserva._id },
+                { $set: { status: 'reagendada', hora: nuevaHora, fecha: nuevaFecha } }
+            );
             await AgendaSlot.findByIdAndUpdate(slotNuevo._id, {
-                $set: { status: 'ocupado', appointmentId: cita._id, clientId: cita.clientId }
+                $set: { status: 'ocupado', appointmentId: reserva._id, clientId: reserva.userId }
             });
+            res.status(200).json({ success: true, msg: `Reagendada para ${nuevaFecha} a las ${nuevaHora}` });
 
-            res.status(200).json({ success: true, msg: `Cita reagendada para el ${nuevaFecha} a las ${nuevaHora}`, cita });
+        } else if (accion === 'llegar') {
+            await db.collection('userReservas').updateOne(
+                { _id: reserva._id },
+                { $set: { status: 'en_proceso' } }
+            );
+            res.status(200).json({ success: true, msg: 'Llegada registrada' });
+
+        } else if (accion === 'finalizar') {
+            await db.collection('userReservas').updateOne(
+                { _id: reserva._id },
+                { $set: { status: 'completada' } }
+            );
+            await AgendaSlot.findOneAndUpdate(
+                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
+                { $set: { status: 'pasado', appointmentId: null, clientId: null } }
+            );
+            await Barber.findByIdAndUpdate(reserva.barberId, { isWorking: false });
+            res.status(200).json({ success: true, msg: 'Servicio finalizado' });
         }
 
     } catch (error) {
         console.error('Error responderSolicitud:', error);
+        res.status(500).json({ success: false, msg: 'Error del servidor' });
+    }
+};
+exports.getPendientes = async (req, res) => {
+    try {
+        const { barberId } = req.params;
+        const db = require('mongoose').connection.db;
+
+        const pendientes = await db.collection('userReservas').find({
+            barberId: new mongoose.Types.ObjectId(barberId),
+            status:   'pendiente'
+        }).sort({ createdAt: 1 }).toArray();
+
+        const enriquecidas = await Promise.all(
+            pendientes.map(async (r) => {
+                const cliente = await db.collection('users').findOne(
+                    { _id: r.userId },
+                    { projection: { nombre: 1, telefono: 1 } }
+                );
+                return {
+                    _id:           r._id,
+                    clienteNombre: cliente?.nombre   ?? 'Cliente',
+                    clienteTel:    cliente?.telefono ?? '',
+                    servicios:     Array.isArray(r.servicios) ? r.servicios : [],
+                    hora:          r.hora,
+                    fecha:         r.fecha,
+                    status:        r.status,
+                };
+            })
+        );
+
+        res.status(200).json({
+            success:   true,
+            pendientes: enriquecidas
+        });
+
+    } catch (error) {
+        console.error('Error getPendientes:', error);
         res.status(500).json({ success: false, msg: 'Error del servidor' });
     }
 };

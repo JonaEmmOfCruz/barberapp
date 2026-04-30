@@ -9,9 +9,9 @@ const disponibilidadRoutes = require('./routes/barberDisponibilidad');
 const serviceRoutes        = require('./routes/barberServiceRoute');
 const authRoutes           = require('./routes/auth');
 const uploadRoutes         = require('./routes/upload');
-const serviceRequests      = require('./routes/serviceRequests');
+const serviceRequests      = require('./routes/userServiceRequests');
 const appointmentRoutes    = require('./routes/barberAppointments');
-const barbersRoutes        = require('./routes/barbers');         // de tu colega
+const barbersRoutes        = require('./routes/userBarbers');       
 
 dotenv.config();
 const app = express();
@@ -63,7 +63,7 @@ app.use('/api/service-requests', serviceRequests);
 app.use('/api/disponibilidad',   disponibilidadRoutes);
 app.use('/api/citas',            appointmentRoutes);
 app.use('/api/barbers',          barbersRoutes);         // de tu colega
-app.use('/api/reservas',         require('./routes/reservas')); // de tu colega
+app.use('/api/reservas',         require('./routes/userReservas')); // de tu colega
 
 // Ruta de prueba
 app.get('/', (req, res) => {

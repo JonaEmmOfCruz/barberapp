@@ -1,11 +1,16 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:ui';
 import 'package:barber_app/config/app_config.dart';
-import 'package:barber_app/screens/User_Screens/user_home_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
+
+const _kAzul      = Color(0xFF0D3FA6);
+const _kAzulMedio = Color(0xFF1A5FD4);
+const _kNavy      = Color(0xFF1A1A2E);
+const _kBlanco    = Colors.white;
+const _kFondo     = Color(0xFFF0F4FF);
 
 class UserReservationsScreen extends StatefulWidget {
   final String userId;
@@ -17,223 +22,280 @@ class UserReservationsScreen extends StatefulWidget {
 
 class _UserReservationsScreenState extends State<UserReservationsScreen> {
   final String baseUrl = AppConfig.baseUrl;
-  List<dynamic> reservations = [];
-  bool isLoading = true;
+  List<dynamic> _enCurso = [];
+  bool _isLoading = true;
+  final Set<String> _statusEnCurso = {'pendiente', 'aceptada', 'reagendada'};
 
   @override
   void initState() {
     super.initState();
-    _fetchReservations();
+    _fetchReservas();
   }
 
-  Future<void> _fetchReservations() async {
+  Future<void> _fetchReservas() async {
+    setState(() => _isLoading = true);
     try {
       final res = await http.get(
         Uri.parse('$baseUrl/api/reservas/user/${widget.userId}'),
       );
-
       if (res.statusCode == 200) {
-        final decodedData = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as List;
         setState(() {
-          reservations = decodedData is List ? decodedData : (decodedData['reservas'] ?? []);
-          isLoading = false;
+          _enCurso   = data.where((r) => _statusEnCurso.contains(r['status'])).toList();
+          _isLoading = false;
         });
       } else {
-        setState(() => isLoading = false);
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      debugPrint("Error: $e");
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fondo limpio
-      body: SafeArea(
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)))
-            : RefreshIndicator(
-                onRefresh: _fetchReservations,
-                color: const Color(0xFF007AFF),
-                child: CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    // --- BOTÓN REGRESAR ---
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 15, top: 10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
-                            onPressed: () => Navigator.pop(context),
-                          ),
+      backgroundColor: _kFondo,
+      extendBody: true,
+      body: Column(
+        children: [
+          // ── HEADER con SafeArea integrado ──────────────────────────
+          Container(
+            color: _kAzul,
+            width: double.infinity,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: _kBlanco.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: const Icon(Icons.arrow_back_ios_new, color: _kBlanco, size: 16),
                       ),
                     ),
-
-                    // --- TÍTULO ESTILO SLIVER ---
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(30, 10, 30, 30),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Mis Reservas",
-                              style: TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF1D1D1F),
-                                letterSpacing: -1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              width: 50,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF007AFF),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // --- LISTADO DE RESERVAS CON DISEÑO DE CARDS ACTUALIZADO ---
-                    reservations.isEmpty
-                        ? const SliverFillRemaining(
-                            child: Center(
-                              child: Text("No tienes servicios agendados", style: TextStyle(color: Colors.grey)),
-                            ),
-                          )
-                        : SliverPadding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) => _buildModernReservationCard(reservations[index]),
-                                childCount: reservations.length,
-                              ),
-                            ),
-                          ),
-                    
-                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                    const SizedBox(height: 14),
+                    const Text('Mis Reservas',
+                      style: TextStyle(color: _kBlanco, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('Seguimiento de tus citas en curso',
+                      style: TextStyle(color: _kBlanco.withOpacity(0.6), fontSize: 12)),
                   ],
                 ),
               ),
+            ),
+          ),
+
+          // ── CONTENIDO ──────────────────────────────────────────────
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: _kAzulMedio))
+                : RefreshIndicator(
+                    color: _kAzulMedio,
+                    onRefresh: _fetchReservas,
+                    child: _enCurso.isEmpty
+                        ? _buildEmpty()
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _enCurso.length,
+                            itemBuilder: (_, i) => _buildActiveCard(_enCurso[i]),
+                          ),
+                  ),
+          ),
+        ],
       ),
-      bottomNavigationBar: _customBottomNav(),
+      bottomNavigationBar: _buildLiquidBar(),
     );
   }
 
-  // Card con el diseño solicitado (Gris suave y avatar blanco)
-  Widget _buildModernReservationCard(dynamic res) {
-    final barberData = res['barberId'];
-    String nombre = "Barbero";
-    if (barberData is Map) {
-      nombre = barberData['nombre'] ?? barberData['name'] ?? "Barbero";
+  Widget _buildActiveCard(dynamic r) {
+    final String nombre    = r['barberoNombre'] ?? 'Barbero';
+    final String fecha     = r['fecha']?.toString() ?? '';
+    final String hora      = r['hora'] ?? '';
+    final String status    = r['status'] ?? 'pendiente';
+    final List   servicios = r['servicios'] ?? [];
+    final String domicilio = r['domicilio'] ?? '';
+
+    Color badgeColor;
+    String badgeLabel;
+    Color badgeBg;
+    switch (status) {
+      case 'aceptada':
+        badgeColor = const Color(0xFF7ECFFF);
+        badgeBg    = const Color(0xFF1A5FD4).withOpacity(0.3);
+        badgeLabel = 'Aceptada';
+        break;
+      case 'reagendada':
+        badgeColor = const Color(0xFFFFB347);
+        badgeBg    = Colors.orange.withOpacity(0.2);
+        badgeLabel = 'Reagendada';
+        break;
+      default:
+        badgeColor = const Color(0xFFFFB347);
+        badgeBg    = Colors.orange.withOpacity(0.2);
+        badgeLabel = 'Pendiente';
     }
 
+    String horaFormateada = hora;
+    try {
+      final parts = hora.split(':');
+      int h = int.parse(parts[0]);
+      final m = parts[1];
+      final period = h >= 12 ? 'PM' : 'AM';
+      if (h == 0) {
+        h = 12;
+      } else if (h > 12) h -= 12;
+      horaFormateada = '$h:$m $period';
+    } catch (_) {}
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(15),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F7), // Gris claro estilo iOS
-        borderRadius: BorderRadius.circular(25),
+        color: _kNavy,
+        borderRadius: BorderRadius.circular(22),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Container(
-            width: 75,
-            height: 75,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+          Positioned(
+            bottom: -20, right: -20,
+            child: Container(
+              width: 100, height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _kAzulMedio.withOpacity(0.2),
+              ),
             ),
-            child: const Icon(Icons.person_rounded, size: 45, color: Color(0xFF007AFF)),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  nombre,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF1D1D1F)),
-                ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      color: _kBlanco.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.person_rounded, color: _kBlanco, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(nombre,
+                          style: const TextStyle(color: _kBlanco, fontSize: 16, fontWeight: FontWeight.bold)),
+                        if (servicios.isNotEmpty)
+                          Text(servicios.join(', '),
+                            style: TextStyle(color: _kBlanco.withOpacity(0.55), fontSize: 12),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(20)),
+                    child: Text(badgeLabel,
+                      style: TextStyle(color: badgeColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(height: 0.5, color: _kBlanco.withOpacity(0.1)),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _buildDetail(Icons.calendar_today_rounded, fecha),
+                  const SizedBox(width: 16),
+                  _buildDetail(Icons.access_time_rounded, horaFormateada),
+                ],
+              ),
+              if (domicilio.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF007AFF)),
-                    const SizedBox(width: 4),
-                    Text(
-                      res['fecha']?.toString().split('T')[0] ?? "Sin fecha",
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 12),
-                    const Icon(Icons.access_time_filled_rounded, size: 14, color: Color(0xFF007AFF)),
-                    const SizedBox(width: 4),
-                    Text(
-                      res['hora'] ?? "00:00",
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+                _buildDetail(Icons.location_on_rounded, domicilio),
               ],
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // Menú Flotante Visible (Glassmorphism Claro)
-  Widget _customBottomNav() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(35, 0, 35, 25),
-      height: 65,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF007AFF).withOpacity(0.12),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
+  Widget _buildDetail(IconData icon, String texto) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 6, height: 6,
+          decoration: const BoxDecoration(color: Color(0xFF7ECFFF), shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Icon(icon, color: _kBlanco.withOpacity(0.5), size: 13),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(texto,
+            style: TextStyle(color: _kBlanco.withOpacity(0.7), fontSize: 12),
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
+      ],
+    );
+  }
+
+  Widget _buildEmpty() {
+    return ListView(
+      children: [
+        const SizedBox(height: 80),
+        Center(
+          child: Column(
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(color: _kNavy, borderRadius: BorderRadius.circular(24)),
+                child: Icon(Icons.calendar_month_rounded, color: _kBlanco.withOpacity(0.5), size: 40),
+              ),
+              const SizedBox(height: 16),
+              const Text('Sin reservas en curso',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kNavy)),
+              const SizedBox(height: 6),
+              Text('Tus citas activas aparecerán aquí',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLiquidBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      height: 72,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(25),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.4),
-                  Colors.white.withOpacity(0.2),
-                ],
-              ),
-              border: Border.all(width: 1.5, color: Colors.white.withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(30),
+              color: _kBlanco.withOpacity(0.25),
+              border: Border.all(color: _kBlanco.withOpacity(0.4), width: 1.5),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.home_filled, "Inicio", false, () => Navigator.pop(context)),
-                _buildNavItem(Icons.description, "Servicios", false, () {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserServicesScreen()));
-                }),
-                _buildNavItem(Icons.calendar_month, "Reservas", true, () {}),
-                _buildNavItem(Icons.person, "Perfil", false, () {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserPerfilScreen()));
-                }),
+                _buildTabItem(Icons.home_filled,    'Inicio',    false, () => Navigator.pop(context)),
+                _buildTabItem(Icons.description,    'Servicios', false, () =>
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserServicesScreen()))),
+                _buildTabItem(Icons.calendar_month, 'Reservas',  true,  () {}),
+                _buildTabItem(Icons.person,         'Perfil',    false, () =>
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserPerfilScreen()))),
               ],
             ),
           ),
@@ -242,28 +304,20 @@ class _UserReservationsScreenState extends State<UserReservationsScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildTabItem(IconData icon, String label, bool selected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 24,
-            color: isSelected ? const Color(0xFF007AFF) : Colors.black.withOpacity(0.3),
-          ),
+          Icon(icon, size: 22,
+            color: selected ? Colors.grey.shade500 : _kAzulMedio),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? const Color(0xFF007AFF) : Colors.black.withOpacity(0.3),
-            ),
-          ),
+          Text(label, style: TextStyle(
+            fontSize: 10,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            color: selected ? Colors.grey.shade500 : _kAzulMedio)),
         ],
       ),
     );
