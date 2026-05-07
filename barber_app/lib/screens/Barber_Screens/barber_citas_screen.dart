@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:barber_app/config/app_config.dart';
+import 'package:barber_app/screens/Barber_Screens/barber_disponibilidad_screen.dart';
 import 'barber_state.dart';
+import 'package:geolocator/geolocator.dart';
 
 // ─────────────────────────────────────────────
 //  MODELOS
@@ -14,42 +16,8 @@ class DiaAgenda {
   final String fecha;
   final String diaSemana;
   final bool tieneJornada;
-  final JornadaInfo? jornada;
 
-  DiaAgenda({required this.fecha, required this.diaSemana, required this.tieneJornada, this.jornada});
-
-  factory DiaAgenda.fromJson(Map<String, dynamic> json) => DiaAgenda(
-    fecha:        json['fecha'],
-    diaSemana:    json['diaSemana'],
-    tieneJornada: json['tieneJornada'] ?? false,
-    jornada:      json['jornada'] != null ? JornadaInfo.fromJson(json['jornada']) : null,
-  );
-}
-
-class JornadaInfo {
-  final String id;
-  final String inicioHora;
-  final String finHora;
-  final int totalSlots;
-  final DescansoInfo? descanso;
-
-  JornadaInfo({required this.id, required this.inicioHora, required this.finHora, required this.totalSlots, this.descanso});
-
-  factory JornadaInfo.fromJson(Map<String, dynamic> json) => JornadaInfo(
-    id:         json['id'] ?? '',
-    inicioHora: json['inicioHora'] ?? '',
-    finHora:    json['finHora'] ?? '',
-    totalSlots: json['totalSlots'] ?? 0,
-    descanso:   json['descanso'] != null ? DescansoInfo.fromJson(json['descanso']) : null,
-  );
-}
-
-class DescansoInfo {
-  final String inicioHora;
-  final String finHora;
-  DescansoInfo({required this.inicioHora, required this.finHora});
-  factory DescansoInfo.fromJson(Map<String, dynamic> json) =>
-      DescansoInfo(inicioHora: json['inicioHora'] ?? '', finHora: json['finHora'] ?? '');
+  DiaAgenda({required this.fecha, required this.diaSemana, required this.tieneJornada});
 }
 
 class CitaCard {
@@ -92,6 +60,7 @@ class CitaCard {
 // ─────────────────────────────────────────────
 const _kRojo      = Color(0xFFE8202A);
 const _kNegro     = Color(0xFF1A1A1A);
+const _kNavy      = Color(0xFF1A1A2E);
 const _kGrisFondo = Color(0xFFF5F5F5);
 const _kBlanco    = Colors.white;
 
@@ -119,12 +88,14 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
   final String baseUrl = AppConfig.baseUrl;
 
   bool _isLoading      = true;
+  bool _tieneHorario   = false;
+  List<Map<String, dynamic>> _diasDisponibles = [];
+  final Map<String, double> _distanciasCapturadasIr = {}; // citaId → distanciaKm
   List<DiaAgenda> _semana   = [];
-  int _diaSeleccionado      = 0;
+  int  _diaSeleccionado     = 0;
   List<CitaCard> _citas     = [];
   bool _loadingCitas        = false;
 
-  // Polling
   Timer? _pollingTimer;
   bool   _mostrandoDialog = false;
 
@@ -144,25 +115,22 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
   }
 
   // ── POLLING ───────────────────────────────────────────────────────
- void _iniciarPolling() {
-  // Esperamos 2 segundos para que el widget esté completamente montado
-  Future.delayed(const Duration(seconds: 2), () {
-    if (mounted) {
-      _verificarPendientes();
-      _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+  void _iniciarPolling() {
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
         _verificarPendientes();
-      });
-    }
-  });
-}
+        _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+          _verificarPendientes();
+        });
+      }
+    });
+  }
 
   Future<void> _verificarPendientes() async {
-    debugPrint('🔔 Verificando pendientes... dialog: $_mostrandoDialog mounted: $mounted');
     if (_mostrandoDialog || !mounted) return;
     try {
       final res = await http.get(
-        Uri.parse('$baseUrl/api/citas/barbero/${widget.barberId}/pendientes'),
-      );
+        Uri.parse('$baseUrl/api/citas/barbero/${widget.barberId}/pendientes'));
       if (res.statusCode == 200) {
         final data      = json.decode(res.body);
         final List pend = data['pendientes'] ?? [];
@@ -177,76 +145,149 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
 
   // ── DIALOG SOLICITUD ──────────────────────────────────────────────
   void _mostrarDialogPendiente(dynamic cita) {
-    _mostrandoDialog = true;
-    final String nombre    = cita['clienteNombre'] ?? 'Cliente';
-    final List   servicios = cita['servicios']     ?? [];
-    final String hora      = cita['hora']          ?? '';
-    final String fecha     = cita['fecha']         ?? '';
-    final String citaId    = cita['_id'].toString();
+  _mostrandoDialog = true;
+  final String nombre        = cita['clienteNombre'] ?? 'Cliente';
+  final List   svcs          = cita['servicios']     ?? [];
+  final String hora          = cita['hora']          ?? '';
+  final String fecha         = cita['fecha']         ?? '';
+  final String citaId        = cita['_id'].toString();
+  final bool   excedeHorario = cita['excedeHorario'] ?? false;
+  final int    duracion      = cita['duracionTotal']  ?? 0;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Container(
-              width: 40, height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFEBEB), shape: BoxShape.circle),
-              child: const Icon(Icons.person, color: _kRojo, size: 22),
-            ),
-            const SizedBox(width: 10),
-            const Text('Nueva solicitud',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(nombre,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('Servicios: ${servicios.join(', ')}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-            const SizedBox(height: 4),
-            Text('$fecha a las $hora',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _responderCita(citaId, 'rechazar');
-            },
-            child: const Text('Rechazar', style: TextStyle(color: Colors.red)),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            decoration: const BoxDecoration(
+              color: _kNegro,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+            child: Row(children: [
+              Container(width: 44, height: 44,
+                decoration: const BoxDecoration(color: Color(0xFFFFEBEB), shape: BoxShape.circle),
+                child: const Icon(Icons.person, color: _kRojo, size: 24)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Nueva solicitud',
+                    style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.w500)),
+                  Text(nombre,
+                    style: const TextStyle(color: _kBlanco, fontSize: 17, fontWeight: FontWeight.bold)),
+                ],
+              )),
+            ]),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _mostrarDialogReagendar(citaId);
-            },
-            child: const Text('Reagendar', style: TextStyle(color: Colors.orange)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kRojo,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
+          // Body
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Info servicios
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(14)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.content_cut, size: 14, color: _kRojo),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(svcs.join(', '),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kNegro))),
+                      ]),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 6),
+                        Text('$fecha a las $hora',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        if (duracion > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _kRojo.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8)),
+                            child: Text('$duracion min',
+                              style: const TextStyle(fontSize: 11, color: _kRojo, fontWeight: FontWeight.bold))),
+                        ],
+                      ]),
+                    ],
+                  ),
+                ),
+                // Aviso si excede horario
+                if (excedeHorario) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3), width: 0.5)),
+                    child: Row(children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        'Esta cita excede tu horario de trabajo. ¿Deseas aceptarla de todas formas?',
+                        style: TextStyle(fontSize: 12, color: Colors.orange.shade800))),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                // Botones
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () { Navigator.pop(context); _responderCita(citaId, 'rechazar'); },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red, width: 0.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
+                      child: const Text('Rechazar', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () { Navigator.pop(context); _mostrarDialogReagendar(citaId); },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.orange.shade300, width: 0.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
+                      child: Text('Reagendar', style: TextStyle(color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kRojo,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0),
+                      onPressed: () { Navigator.pop(context); _responderCita(citaId, 'aceptar'); },
+                      child: const Text('Aceptar', style: TextStyle(color: _kBlanco, fontWeight: FontWeight.bold))),
+                  ),
+                ]),
+              ],
             ),
-            onPressed: () {
-              Navigator.pop(context);
-              _responderCita(citaId, 'aceptar');
-            },
-            child: const Text('Aceptar', style: TextStyle(color: _kBlanco)),
           ),
         ],
       ),
-    ).then((_) => _mostrandoDialog = false);
-  }
+    ),
+  ).then((_) => _mostrandoDialog = false);
+}
 
   Future<void> _responderCita(String citaId, String accion) async {
     try {
@@ -256,22 +297,21 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
         body: json.encode({'accion': accion}),
       );
       if (res.statusCode == 200) {
-       String mensaje;
-bool esExito = true;
-switch (accion) {
-  case 'aceptar':   mensaje = 'Cita aceptada';        break;
-  case 'rechazar':  mensaje = 'Cita rechazada';  esExito = false; break;
-  case 'llegar':    mensaje = 'Llegada registrada';    break;
-  case 'finalizar': mensaje = 'Servicio finalizado';   break;
-  default:          mensaje = 'Acción completada';
-}
-_mostrarSnack(mensaje, esExito: esExito);
-        _cargarSemana();
+        String mensaje;
+        bool esExito = true;
+        switch (accion) {
+          case 'aceptar':   mensaje = 'Cita aceptada';       break;
+          case 'rechazar':  mensaje = 'Cita rechazada'; esExito = false; break;
+          case 'llegar':    mensaje = 'Llegada registrada';   break;
+          case 'finalizar': mensaje = 'Servicio finalizado';  break;
+          default:          mensaje = 'Acción completada';
+        }
+        _mostrarSnack(mensaje, esExito: esExito);
         _cargarCitasDia(_semana.isNotEmpty ? _semana[_diaSeleccionado].fecha : _fechaHoy());
       } else {
         _mostrarSnack('Error al responder la cita');
       }
-    } catch (e) {
+    } catch (_) {
       _mostrarSnack('Error de conexión');
     }
   }
@@ -286,12 +326,10 @@ _mostrarSnack(mensaje, esExito: esExito);
         builder: (ctx, setModalState) => Container(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            top: 24, left: 20, right: 20,
-          ),
+            top: 24, left: 20, right: 20),
           decoration: const BoxDecoration(
             color: _kBlanco,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,27 +349,20 @@ _mostrarSnack(mensaje, esExito: esExito);
                       data: Theme.of(ctx).copyWith(
                         colorScheme: const ColorScheme.light(
                           primary: _kRojo, onPrimary: _kBlanco, surface: _kBlanco)),
-                      child: child!,
-                    ),
-                  );
+                      child: child!));
                   if (t != null) setModalState(() => nuevaHora = t);
                 },
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: _kGrisFondo,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.access_time, color: _kRojo),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${nuevaHora.hour.toString().padLeft(2,'0')}:${nuevaHora.minute.toString().padLeft(2,'0')}',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
+                    color: _kGrisFondo, borderRadius: BorderRadius.circular(12)),
+                  child: Row(children: [
+                    const Icon(Icons.access_time, color: _kRojo),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${nuevaHora.hour.toString().padLeft(2,'0')}:${nuevaHora.minute.toString().padLeft(2,'0')}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ]),
                 ),
               ),
               const SizedBox(height: 24),
@@ -341,9 +372,7 @@ _mostrarSnack(mensaje, esExito: esExito);
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kRojo,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    elevation: 0,
-                  ),
+                    padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
                   onPressed: () async {
                     Navigator.pop(context);
                     final hora  = '${nuevaHora.hour.toString().padLeft(2,'0')}:${nuevaHora.minute.toString().padLeft(2,'0')}';
@@ -353,20 +382,14 @@ _mostrarSnack(mensaje, esExito: esExito);
                         Uri.parse('$baseUrl/api/citas/$citaId/responder'),
                         headers: {'Content-Type': 'application/json'},
                         body: json.encode({
-                          'accion':     'reagendar',
-                          'nuevaHora':  hora,
-                          'nuevaFecha': fecha,
-                        }),
-                      );
+                          'accion': 'reagendar', 'nuevaHora': hora, 'nuevaFecha': fecha}));
                       if (res.statusCode == 200) {
                         _mostrarSnack('Reagendado correctamente', esExito: true);
                         _cargarSemana();
                       } else {
                         _mostrarSnack('No se pudo reagendar');
                       }
-                    } catch (e) {
-                      _mostrarSnack('Error de conexión');
-                    }
+                    } catch (_) { _mostrarSnack('Error de conexión'); }
                   },
                   child: const Text('Confirmar nueva hora',
                     style: TextStyle(color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 15)),
@@ -380,32 +403,57 @@ _mostrarSnack(mensaje, esExito: esExito);
   }
 
   // ── CARGAR DATOS ──────────────────────────────────────────────────
-
   Future<void> _cargarSemana() async {
     setState(() => _isLoading = true);
     try {
-      final hoy = _fechaHoy();
       final res = await http.get(
-        Uri.parse('$baseUrl/api/disponibilidad/${widget.barberId}/jornadas?fechaInicio=$hoy'),
-      );
+        Uri.parse('$baseUrl/api/disponibilidad/${widget.barberId}/horario'));
       if (res.statusCode == 200) {
-        final data  = json.decode(res.body);
-        final lista = (data['semana'] as List).map((d) => DiaAgenda.fromJson(d)).toList();
-        setState(() { _semana = lista; _isLoading = false; });
-        if (lista.isNotEmpty) _cargarCitasDia(lista[0].fecha);
+        final data = json.decode(res.body);
+        final dias = data['diasDisponibles'] as List? ?? [];
+        setState(() {
+          _tieneHorario    = dias.isNotEmpty;
+          _diasDisponibles = List<Map<String, dynamic>>.from(dias);
+          _isLoading       = false;
+        });
+        if (_tieneHorario) _generarProximos7Dias();
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      debugPrint('Error cargando semana: $e');
+      debugPrint('Error cargando horario: $e');
       setState(() => _isLoading = false);
     }
+  }
+
+  void _generarProximos7Dias() {
+    final hoy        = DateTime.now();
+    final lista      = <DiaAgenda>[];
+    final diasActivos = _diasDisponibles.map((d) => d['dia'] as int).toSet();
+    const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+    for (int i = 0; i < 30 && lista.length < 7; i++) {
+      final dia       = hoy.add(Duration(days: i));
+      final diaSemana = dia.weekday % 7;
+      if (diasActivos.contains(diaSemana)) {
+        final fecha = '${dia.year}-${dia.month.toString().padLeft(2,'0')}-${dia.day.toString().padLeft(2,'0')}';
+        lista.add(DiaAgenda(
+          fecha:        fecha,
+          diaSemana:    nombresDias[diaSemana],
+          tieneJornada: true,
+        ));
+      }
+    }
+
+    setState(() { _semana = lista; _diaSeleccionado = 0; });
+    if (lista.isNotEmpty) _cargarCitasDia(lista[0].fecha);
   }
 
   Future<void> _cargarCitasDia(String fecha) async {
     setState(() => _loadingCitas = true);
     try {
       final res = await http.get(
-        Uri.parse('$baseUrl/api/citas/barbero/${widget.barberId}?fecha=$fecha'),
-      );
+        Uri.parse('$baseUrl/api/citas/barbero/${widget.barberId}?fecha=$fecha'));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
@@ -421,200 +469,104 @@ _mostrarSnack(mensaje, esExito: esExito);
     }
   }
 
-  // ── ABRIR JORNADA ─────────────────────────────────────────────────
+ Future<void> _irAlMapa(CitaCard cita) async {
+  if (cita.lat == null || cita.lng == null) return;
 
-  void _mostrarDialogoAbrirJornada(DiaAgenda dia) {
-    TimeOfDay inicioHora     = const TimeOfDay(hour: 9,  minute: 0);
-    TimeOfDay finHora        = const TimeOfDay(hour: 14, minute: 0);
-    bool tieneDescanso       = false;
-    TimeOfDay descansoInicio = const TimeOfDay(hour: 12, minute: 0);
-    TimeOfDay descansoFin    = const TimeOfDay(hour: 13, minute: 0);
+  // ── Verificar fecha/hora ──────────────────────────────────────
+  final ahora      = DateTime.now();
+  final fechaParts = cita.fecha.split('-');
+  final horaParts  = cita.hora.split(':');
+  final fechaCita  = DateTime(
+    int.parse(fechaParts[0]),
+    int.parse(fechaParts[1]),
+    int.parse(fechaParts[2]),
+    int.parse(horaParts[0]),
+    int.parse(horaParts[1]),
+  );
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setModalState) => Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            top: 24, left: 20, right: 20,
-          ),
-          decoration: const BoxDecoration(
-            color: _kBlanco,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 20),
-              Row(children: [
-                Container(width: 4, height: 20,
-                  decoration: BoxDecoration(color: _kRojo, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 10),
-                Text('Abrir jornada — ${dia.diaSemana}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kNegro)),
-              ]),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: _buildTimePicker(label: 'Inicio', hora: inicioHora,
-                  onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: inicioHora,
-                      builder: (ctx, child) => _timePickerTheme(ctx, child));
-                    if (t != null) setModalState(() => inicioHora = t);
-                  })),
-                const SizedBox(width: 12),
-                Expanded(child: _buildTimePicker(label: 'Fin', hora: finHora,
-                  onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: finHora,
-                      builder: (ctx, child) => _timePickerTheme(ctx, child));
-                    if (t != null) setModalState(() => finHora = t);
-                  })),
-              ]),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () => setModalState(() => tieneDescanso = !tieneDescanso),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: tieneDescanso ? _kRojo.withOpacity(0.08) : _kGrisFondo,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: tieneDescanso ? _kRojo.withOpacity(0.3) : Colors.grey.shade200),
-                  ),
-                  child: Row(children: [
-                    Icon(Icons.free_breakfast_outlined, size: 18,
-                      color: tieneDescanso ? _kRojo : Colors.grey.shade500),
-                    const SizedBox(width: 10),
-                    Text('Agregar descanso', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                      color: tieneDescanso ? _kRojo : Colors.grey.shade600)),
-                    const Spacer(),
-                    Icon(tieneDescanso ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      color: tieneDescanso ? _kRojo : Colors.grey.shade400),
-                  ]),
-                ),
-              ),
-              if (tieneDescanso) ...[
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _buildTimePicker(label: 'Descanso inicio', hora: descansoInicio,
-                    onTap: () async {
-                      final t = await showTimePicker(context: context, initialTime: descansoInicio,
-                        builder: (ctx, child) => _timePickerTheme(ctx, child));
-                      if (t != null) setModalState(() => descansoInicio = t);
-                    })),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildTimePicker(label: 'Descanso fin', hora: descansoFin,
-                    onTap: () async {
-                      final t = await showTimePicker(context: context, initialTime: descansoFin,
-                        builder: (ctx, child) => _timePickerTheme(ctx, child));
-                      if (t != null) setModalState(() => descansoFin = t);
-                    })),
-                ]),
-              ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kRojo,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _abrirJornada(dia: dia, inicioHora: inicioHora, finHora: finHora,
-                      descanso: tieneDescanso
-                          ? {'inicioHora': _formatHora(descansoInicio), 'finHora': _formatHora(descansoFin)}
-                          : null);
-                  },
-                  child: const Text('Abrir jornada',
-                    style: TextStyle(color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 15)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  final esMismoDia = ahora.year == fechaCita.year &&
+      ahora.month == fechaCita.month &&
+      ahora.day == fechaCita.day;
+  final esAntesDeFecha = ahora.isBefore(
+      DateTime(fechaCita.year, fechaCita.month, fechaCita.day));
+  final esAntesDeHora  = esMismoDia && ahora.isBefore(fechaCita);
+
+  String? mensajeAdvertencia;
+  if (esAntesDeFecha) {
+    mensajeAdvertencia =
+        'La fecha de esta cita es el ${cita.fecha}. ¿Estás seguro de que quieres iniciar el traslado ahora?';
+  } else if (esAntesDeHora) {
+    mensajeAdvertencia =
+        'La hora de la cita aún no ha llegado (${cita.hora}). ¿Estás seguro de que quieres iniciar el traslado ahora?';
   }
 
-  Future<void> _abrirJornada({
-    required DiaAgenda dia,
-    required TimeOfDay inicioHora,
-    required TimeOfDay finHora,
-    Map<String, String>? descanso,
-  }) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/disponibilidad/${widget.barberId}/jornada'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'fecha': dia.fecha, 'inicioHora': _formatHora(inicioHora), 'finHora': _formatHora(finHora),
-          'descanso': ?descanso,
-        }),
-      );
-      if (res.statusCode == 201) {
-        final data = json.decode(res.body);
-        await _state.cargarEstado();
-        _mostrarSnack('Jornada abierta — ${data['jornada']['totalSlots']} slots generados', esExito: true);
-        _cargarSemana();
-      } else {
-        final data = json.decode(res.body);
-        _mostrarSnack(data['msg'] ?? 'Error al abrir jornada');
-      }
-    } catch (e) { _mostrarSnack('Error de conexión'); }
-  }
-
-  void _confirmarCerrarJornada(DiaAgenda dia) {
-    showDialog(
+  if (mensajeAdvertencia != null) {
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('¿Cerrar jornada?', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('Se cancelarán todos los slots disponibles del ${dia.diaSemana}.'),
+        title: Row(children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+          const SizedBox(width: 8),
+          const Text('Atención', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        ]),
+        content: Text(mensajeAdvertencia!, style: const TextStyle(fontSize: 14)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey.shade600)),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _kRojo, elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: () { Navigator.pop(context); _cerrarJornada(dia); },
-            child: const Text('Cerrar', style: TextStyle(color: _kBlanco)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kRojo,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, continuar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+    if (confirmar != true) return;
   }
 
-  Future<void> _cerrarJornada(DiaAgenda dia) async {
-    try {
-      final res = await http.delete(
-        Uri.parse('$baseUrl/api/disponibilidad/${widget.barberId}/jornada/${dia.jornada!.id}'),
-      );
-      if (res.statusCode == 200) {
-        await _state.cargarEstado();
-        _mostrarSnack('Jornada cerrada', esExito: true);
-        _cargarSemana();
-      } else {
-        final data = json.decode(res.body);
-        _mostrarSnack(data['msg'] ?? 'No se pudo cerrar');
-      }
-    } catch (e) { _mostrarSnack('Error de conexión'); }
+  // ── Capturar ubicación del barbero ────────────────────────────
+  try {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      await Geolocator.requestPermission();
+    }
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    final distancia = Geolocator.distanceBetween(
+      pos.latitude, pos.longitude,
+      cita.lat!, cita.lng!,
+    ) / 1000; // metros → km
+
+    setState(() => _distanciasCapturadasIr[cita.id] = distancia);
+
+    // Actualizar distancia en backend
+    await http.put(
+      Uri.parse('$baseUrl/api/citas/${cita.id}/distancia'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'distanciaKm': distancia}),
+    );
+  } catch (e) {
+    debugPrint('Error obteniendo ubicación: $e');
   }
 
-  Future<void> _irAlMapa(CitaCard cita) async {
-    if (cita.lat == null || cita.lng == null) return;
-    final Uri url = Uri.parse('maps://maps.apple.com/?daddr=${cita.lat},${cita.lng}&dirflg=d');
-    if (await canLaunchUrl(url)) await launchUrl(url);
-  }
+  // ── Abrir mapa ────────────────────────────────────────────────
+  final Uri url = Uri.parse(
+    'maps://maps.apple.com/?daddr=${cita.lat},${cita.lng}&dirflg=d');
+  if (await canLaunchUrl(url)) await launchUrl(url);
+}
 
   // ─────────────────────────────────────────────
   //  BUILD
   // ─────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -639,6 +591,7 @@ _mostrarSnack(mensaje, esExito: esExito);
     );
   }
 
+  // ── HEADER ────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       color: _kRojo,
@@ -659,23 +612,39 @@ _mostrarSnack(mensaje, esExito: esExito);
                     style: TextStyle(color: _kBlanco.withOpacity(0.75), fontSize: 13)),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
+              Row(children: [
+                GestureDetector(
+                  onTap: () async {
+                    await Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => BarberDisponibilidadScreen(barberId: widget.barberId ?? '')));
+                    _cargarSemana();
+                  },
+                  child: Container(
+                    width: 36, height: 36,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: _kBlanco.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.tune_rounded, color: _kBlanco, size: 18),
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 8, height: 8,
-                      decoration: BoxDecoration(color: _state.modoDotColor, shape: BoxShape.circle)),
-                    const SizedBox(width: 6),
-                    Text(_state.modoTexto,
-                      style: const TextStyle(color: _kBlanco, fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 8, height: 8,
+                        decoration: BoxDecoration(color: _state.modoDotColor, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(_state.modoTexto,
+                        style: const TextStyle(color: _kBlanco, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
-              ),
+              ]),
             ],
           ),
         ),
@@ -683,25 +652,72 @@ _mostrarSnack(mensaje, esExito: esExito);
     );
   }
 
+  // ── CONTENIDO ─────────────────────────────────────────────────────
   Widget _buildContenido() {
+    if (!_tieneHorario) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(
+                builder: (_) => BarberDisponibilidadScreen(barberId: widget.barberId ?? '')));
+              _cargarSemana();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: _kBlanco, borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200)),
+              child: Column(
+                children: [
+                  Container(
+                    width: 60, height: 60,
+                    decoration: BoxDecoration(
+                      color: _kRojo.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(18)),
+                    child: const Icon(Icons.tune_rounded, color: _kRojo, size: 28)),
+                  const SizedBox(height: 16),
+                  const Text('Configura tu disponibilidad',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kNegro)),
+                  const SizedBox(height: 8),
+                  Text('Define qué días y horarios trabajas para que los usuarios puedan agendar contigo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _kNavy, borderRadius: BorderRadius.circular(14)),
+                    child: const Center(child: Text('Configurar ahora',
+                      style: TextStyle(color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 14))),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       children: [
         _buildSelectorSemana(),
         const SizedBox(height: 20),
-        if (_semana.isNotEmpty) _buildInfoJornada(_semana[_diaSeleccionado]),
-        const SizedBox(height: 20),
-        if (_semana.isNotEmpty && _semana[_diaSeleccionado].tieneJornada) ...[
-          _buildSeccionLabel('Citas del día'),
-          const SizedBox(height: 12),
-          _buildListaCitas(),
-        ],
+        _buildSeccionLabel('Citas del día'),
+        const SizedBox(height: 12),
+        _buildListaCitas(),
         const SizedBox(height: 110),
       ],
     );
   }
 
+  // ── SELECTOR SEMANA ───────────────────────────────────────────────
   Widget _buildSelectorSemana() {
+    if (_semana.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: 72,
       child: ListView.builder(
@@ -722,9 +738,7 @@ _mostrarSnack(mensaje, esExito: esExito);
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selec ? _kRojo : (esHoy ? _kRojo.withOpacity(0.4) : Colors.grey.shade200),
-                  width: esHoy && !selec ? 1.5 : 1,
-                ),
-              ),
+                  width: esHoy && !selec ? 1.5 : 1)),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -738,7 +752,7 @@ _mostrarSnack(mensaje, esExito: esExito);
                   const SizedBox(height: 4),
                   Container(width: 6, height: 6,
                     decoration: BoxDecoration(shape: BoxShape.circle,
-                      color: dia.tieneJornada ? (selec ? _kBlanco : _kRojo) : Colors.transparent)),
+                      color: selec ? _kBlanco.withOpacity(0.5) : Colors.transparent)),
                 ],
               ),
             ),
@@ -748,83 +762,7 @@ _mostrarSnack(mensaje, esExito: esExito);
     );
   }
 
-  Widget _buildInfoJornada(DiaAgenda dia) {
-    if (!dia.tieneJornada) {
-      return GestureDetector(
-        onTap: () => _mostrarDialogoAbrirJornada(dia),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: _kBlanco, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade200)),
-          child: Row(
-            children: [
-              Container(width: 44, height: 44,
-                decoration: BoxDecoration(color: _kRojo.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.add, color: _kRojo, size: 22)),
-              const SizedBox(width: 14),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Abrir jornada',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _kNegro)),
-                Text('Toca para definir tu horario de trabajo',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ]),
-              const Spacer(),
-              Icon(Icons.chevron_right, color: Colors.grey.shade400),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final j = dia.jornada!;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: _kNegro, borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.work_outline, color: _kBlanco, size: 18),
-              const SizedBox(width: 8),
-              Text('${j.inicioHora} — ${j.finHora}',
-                style: const TextStyle(color: _kBlanco, fontWeight: FontWeight.w600, fontSize: 14)),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => _confirmarCerrarJornada(dia),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: _kRojo, borderRadius: BorderRadius.circular(8)),
-                  child: const Text('Cerrar',
-                    style: TextStyle(color: _kBlanco, fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(children: [
-            _buildJornadaStat('${j.totalSlots}', 'slots'),
-            if (j.descanso != null) ...[
-              const SizedBox(width: 12),
-              _buildJornadaStat('${j.descanso!.inicioHora}–${j.descanso!.finHora}', 'descanso'),
-            ],
-          ]),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJornadaStat(String valor, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: _kBlanco.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(valor, style: const TextStyle(color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 14)),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: _kBlanco.withOpacity(0.6), fontSize: 12)),
-      ]),
-    );
-  }
-
+  // ── LISTA CITAS ───────────────────────────────────────────────────
   Widget _buildListaCitas() {
     if (_loadingCitas) {
       return const Center(child: Padding(padding: EdgeInsets.all(20),
@@ -845,7 +783,7 @@ _mostrarSnack(mensaje, esExito: esExito);
     return Column(children: _citas.map((c) => _buildCitaCard(c)).toList());
   }
 
- Widget _buildCitaCard(CitaCard cita) {
+  Widget _buildCitaCard(CitaCard cita) {
     Color statusColor;
     String statusLabel;
     switch (cita.status) {
@@ -863,10 +801,8 @@ _mostrarSnack(mensaje, esExito: esExito);
         color: _kBlanco, borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: cita.status == 'en_proceso'
-              ? Colors.green.withOpacity(0.4)
-              : Colors.grey.shade200,
-          width: cita.status == 'en_proceso' ? 1.5 : 1),
-      ),
+              ? Colors.green.withOpacity(0.4) : Colors.grey.shade200,
+          width: cita.status == 'en_proceso' ? 1.5 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(width: 44, height: 44,
@@ -875,20 +811,17 @@ _mostrarSnack(mensaje, esExito: esExito);
                   ? DecorationImage(image: NetworkImage('$baseUrl${cita.clienteFoto}'), fit: BoxFit.cover)
                   : null),
             child: cita.clienteFoto == null
-                ? const Icon(Icons.person, color: _kRojo, size: 24)
-                : null),
+                ? const Icon(Icons.person, color: _kRojo, size: 24) : null),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(cita.clienteNombre,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _kNegro)),
-            Text(cita.servicios,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text(cita.servicios, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8)),
+              color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
             child: Text(statusLabel,
               style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
           ),
@@ -917,8 +850,6 @@ _mostrarSnack(mensaje, esExito: esExito);
           ]),
         ],
         const SizedBox(height: 16),
-
-        // ── Botones según status ───────────────────────────────────
         if (cita.status == 'aceptada') ...[
           Row(children: [
             Expanded(
@@ -926,8 +857,7 @@ _mostrarSnack(mensaje, esExito: esExito);
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kRojo,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0,
-                ),
+                  padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0),
                 onPressed: () => _irAlMapa(cita),
                 icon: const Icon(Icons.navigation_outlined, color: _kBlanco, size: 18),
                 label: const Text('IR',
@@ -940,8 +870,7 @@ _mostrarSnack(mensaje, esExito: esExito);
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0,
-                ),
+                  padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0),
                 onPressed: () => _responderCita(cita.id, 'llegar'),
                 icon: const Icon(Icons.home_outlined, color: _kBlanco, size: 18),
                 label: const Text('LLEGUÉ',
@@ -956,8 +885,7 @@ _mostrarSnack(mensaje, esExito: esExito);
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0,
-              ),
+                padding: const EdgeInsets.symmetric(vertical: 14), elevation: 0),
               onPressed: () => _responderCita(cita.id, 'finalizar'),
               icon: const Icon(Icons.check_circle_outline, color: _kBlanco, size: 18),
               label: const Text('FINALIZAR SERVICIO',
@@ -985,38 +913,6 @@ _mostrarSnack(mensaje, esExito: esExito);
       Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _kNegro)),
     ]);
   }
-
-  Widget _buildTimePicker({required String label, required TimeOfDay hora, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: _kGrisFondo, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Row(children: [
-            const Icon(Icons.access_time, size: 16, color: _kRojo),
-            const SizedBox(width: 6),
-            Text(_formatHora(hora),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kNegro)),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _timePickerTheme(BuildContext ctx, Widget? child) {
-    return Theme(
-      data: Theme.of(ctx).copyWith(
-        colorScheme: const ColorScheme.light(primary: _kRojo, onPrimary: _kBlanco, surface: _kBlanco)),
-      child: child!,
-    );
-  }
-
-  String _formatHora(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
 
   String _fechaHoy() {
     final now = DateTime.now();

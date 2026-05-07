@@ -1,22 +1,18 @@
-const Appointment = require('../models/barberAppointment');
-const Barber = require('../models/barberos');
-const AgendaSlot = require('../models/barberAgendaSlot');
-const mongoose = require('mongoose');
 
-
+const Barber      = require('../models/barberos');
+const AgendaSlot  = require('../models/barberAgendaSlot');
+const mongoose    = require('mongoose');
 
 // ── Helper: calcular distancia con Google Directions API ──────────
 async function calcularDistancia(origenLat, origenLng, destinoLat, destinoLng) {
     try {
         const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origenLat},${origenLng}&destination=${destinoLat},${destinoLng}&key=${apiKey}`;
-        
+        const url    = `https://maps.googleapis.com/maps/api/directions/json?origin=${origenLat},${origenLng}&destination=${destinoLat},${destinoLng}&key=${apiKey}`;
         const response = await fetch(url);
         const data     = await response.json();
-        
         if (data.status === 'OK' && data.routes.length > 0) {
             const distanciaMetros = data.routes[0].legs[0].distance.value;
-            return Math.round(distanciaMetros / 100) / 10; // km con 1 decimal
+            return Math.round(distanciaMetros / 100) / 10;
         }
         return null;
     } catch (e) {
@@ -25,6 +21,19 @@ async function calcularDistancia(origenLat, origenLng, destinoLat, destinoLng) {
     }
 }
 
+// ── Helpers de tiempo ─────────────────────────────────────────────
+function horaAMinutos(hora) {
+    const [h, m] = hora.split(':').map(Number);
+    return h * 60 + m;
+}
+
+function minutosAHora(minutos) {
+    const h = Math.floor(minutos / 60).toString().padStart(2, '0');
+    const m = (minutos % 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+}
+
+// ─────────────────────────────────────────────────────────────────
 exports.startTrip = async (req, res) => {
     try {
         const { idCita } = req.params;
@@ -33,12 +42,12 @@ exports.startTrip = async (req, res) => {
             { status: 'en_camino', horaSalida: new Date() },
             { new: true }
         );
-        if (!cita) return res.status(404).json({ success: false, msg: "Cita no encontrada" });
+        if (!cita) return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
         await Barber.findByIdAndUpdate(cita.barberId, { isWorking: true });
-        res.status(200).json({ success: true, msg: "Viaje iniciado. El barbero está en camino.", data: cita });
+        res.status(200).json({ success: true, msg: 'Viaje iniciado.', data: cita });
     } catch (error) {
-        console.error("Error en startTrip:", error);
-        res.status(500).json({ success: false, msg: "Error al procesar el inicio del viaje" });
+        console.error('Error en startTrip:', error);
+        res.status(500).json({ success: false, msg: 'Error al procesar el inicio del viaje' });
     }
 };
 
@@ -50,11 +59,11 @@ exports.arriveAtDestination = async (req, res) => {
             { horaLlegada: new Date() },
             { new: true }
         );
-        if (!cita) return res.status(404).json({ success: false, msg: "Cita no encontrada" });
-        res.status(200).json({ success: true, msg: "Llegada registrada por GPS.", horaLlegada: cita.horaLlegada });
+        if (!cita) return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
+        res.status(200).json({ success: true, msg: 'Llegada registrada por GPS.', horaLlegada: cita.horaLlegada });
     } catch (error) {
-        console.error("Error en arriveAtDestination:", error);
-        res.status(500).json({ success: false, msg: "Error al registrar llegada" });
+        console.error('Error en arriveAtDestination:', error);
+        res.status(500).json({ success: false, msg: 'Error al registrar llegada' });
     }
 };
 
@@ -66,45 +75,33 @@ exports.finishService = async (req, res) => {
             { status: 'finalizada', horaFin: new Date() },
             { new: true }
         );
-        if (!cita) return res.status(404).json({ success: false, msg: "Cita no encontrada" });
+        if (!cita) return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
         await Barber.findByIdAndUpdate(cita.barberId, { isWorking: false });
         const duracionTotal = Math.round((cita.horaFin - cita.horaSalida) / 60000);
-        res.status(200).json({ success: true, msg: "Servicio finalizado y barbero liberado.", duracionMinutos: duracionTotal, data: cita });
+        res.status(200).json({ success: true, msg: 'Servicio finalizado.', duracionMinutos: duracionTotal, data: cita });
     } catch (error) {
-        console.error("Error en finishService:", error);
-        res.status(500).json({ success: false, msg: "Error al finalizar el servicio" });
+        console.error('Error en finishService:', error);
+        res.status(500).json({ success: false, msg: 'Error al finalizar el servicio' });
     }
 };
 
-// ─────────────────────────────────────────────
-//  NUEVOS ENDPOINTS
-// ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 //  getCitasBarbero
-//  GET /api/citas/barbero/:barberId?fecha=YYYY-MM-DD
-//
-//  Devuelve todas las citas del barbero para una fecha específica.
-//  Flutter lo llama al seleccionar un día en el selector semanal.
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 exports.getCitasBarbero = async (req, res) => {
     try {
         const { barberId } = req.params;
         const { fecha }    = req.query;
-
-        if (!fecha) {
-            return res.status(400).json({ success: false, msg: 'Falta el parámetro fecha' });
-        }
+        if (!fecha) return res.status(400).json({ success: false, msg: 'Falta el parámetro fecha' });
 
         const db = require('mongoose').connection.db;
 
         const reservas = await db.collection('userReservas').find({
             barberId: new mongoose.Types.ObjectId(barberId),
-            fecha:    fecha,
+            fecha,
             status: { $in: ['aceptada', 'en_camino', 'en_proceso'] }
         }).sort({ hora: 1 }).toArray();
 
-        // Obtener ubicación actual del barbero
         const barberoDoc = await db.collection('barberos').findOne(
             { _id: new mongoose.Types.ObjectId(barberId) },
             { projection: { lastLocation: 1 } }
@@ -118,13 +115,10 @@ exports.getCitasBarbero = async (req, res) => {
                     { _id: r.userId },
                     { projection: { nombre: 1 } }
                 );
-
-                // Calcular distancia si tenemos las coordenadas
                 let distanciaKm = null;
                 if (barberoLat && barberoLng && r.lat && r.lng) {
                     distanciaKm = await calcularDistancia(barberoLat, barberoLng, r.lat, r.lng);
                 }
-
                 return {
                     _id:           r._id,
                     clienteNombre: cliente?.nombre ?? 'Cliente',
@@ -142,26 +136,16 @@ exports.getCitasBarbero = async (req, res) => {
             })
         );
 
-        res.status(200).json({
-            success: true,
-            fecha,
-            total: citasNormalizadas.length,
-            citas: citasNormalizadas
-        });
-
+        res.status(200).json({ success: true, fecha, total: citasNormalizadas.length, citas: citasNormalizadas });
     } catch (error) {
         console.error('Error getCitasBarbero:', error);
         res.status(500).json({ success: false, msg: 'Error del servidor' });
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 //  responderSolicitud
-//  PUT /api/citas/:idCita/responder
-//  Body: { accion: 'aceptar' | 'rechazar' | 'reagendar', nuevaHora?: 'HH:MM', nuevaFecha?: 'YYYY-MM-DD' }
-//
-//  El barbero acepta, rechaza o propone reagendar una cita.
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 exports.responderSolicitud = async (req, res) => {
     try {
         const { idCita } = req.params;
@@ -175,73 +159,146 @@ exports.responderSolicitud = async (req, res) => {
         const reserva = await db.collection('userReservas').findOne({
             _id: new mongoose.Types.ObjectId(idCita)
         });
+        if (!reserva) return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
 
-        if (!reserva) {
-            return res.status(404).json({ success: false, msg: 'Cita no encontrada' });
-        }
-
+        // ── ACEPTAR ───────────────────────────────────────────────
         if (accion === 'aceptar') {
+            const BarberDisponibilidad = require('../models/barberDisponibilidad');
+
+            const disp     = await BarberDisponibilidad.findOne({ barberId: reserva.barberId });
+            const slotBase = disp?.duracionSlotMin ?? 30;
+            let duracionServicio = 0;
+
+            if (disp?.duracionPorServicio?.length > 0 && Array.isArray(reserva.servicios)) {
+                for (const svc of reserva.servicios) {
+                    const found = disp.duracionPorServicio.find(
+                        d => d.nombre.toLowerCase() === svc.toLowerCase());
+                    if (found) duracionServicio += found.duracionMin;
+                }
+            }
+            if (duracionServicio === 0) duracionServicio = slotBase;
+
+            let tiempoTraslado = 0;
+            const barberoDoc = await db.collection('barberos').findOne(
+                { _id: reserva.barberId },
+                { projection: { lastLocation: 1 } }
+            );
+            if (barberoDoc?.lastLocation?.lat && reserva.lat && reserva.lng) {
+                try {
+                    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                    const url    = `https://maps.googleapis.com/maps/api/directions/json?origin=${barberoDoc.lastLocation.lat},${barberoDoc.lastLocation.lng}&destination=${reserva.lat},${reserva.lng}&key=${apiKey}`;
+                    const resp   = await fetch(url);
+                    const data   = await resp.json();
+                    if (data.status === 'OK') {
+                        tiempoTraslado = Math.ceil(data.routes[0].legs[0].duration.value / 60);
+                    }
+                } catch (_) {}
+            }
+
+            const duracionTotal  = duracionServicio + tiempoTraslado;
+            const horaInicioMin  = horaAMinutos(reserva.hora);
+            const slotsABloquear = [];
+
+            for (let min = horaInicioMin; min < horaInicioMin + duracionTotal; min += slotBase) {
+                slotsABloquear.push(minutosAHora(min));
+            }
+
+            for (const hora of slotsABloquear) {
+                await AgendaSlot.findOneAndUpdate(
+                    { barberId: reserva.barberId, fecha: reserva.fecha, hora },
+                    { $set: { status: 'ocupado', appointmentId: reserva._id, clientId: reserva.userId } },
+                    { upsert: true }
+                );
+            }
+
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
-                { $set: { status: 'aceptada' } }
+                { $set: { status: 'aceptada', duracionServicio, tiempoTraslado, duracionTotal } }
             );
-            res.status(200).json({ success: true, msg: 'Cita aceptada' });
 
+            res.status(200).json({ success: true, msg: 'Cita aceptada', slotsBlockeados: slotsABloquear, duracionTotal });
+
+        // ── RECHAZAR ──────────────────────────────────────────────
         } else if (accion === 'rechazar') {
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
                 { $set: { status: 'rechazada' } }
             );
-            await AgendaSlot.findOneAndUpdate(
-                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
-                { $set: { status: 'disponible', appointmentId: null, clientId: null } }
-            );
+            await AgendaSlot.deleteMany({
+                barberId:      reserva.barberId,
+                fecha:         reserva.fecha,
+                appointmentId: reserva._id
+            });
             res.status(200).json({ success: true, msg: 'Cita rechazada' });
 
+        // ── REAGENDAR ─────────────────────────────────────────────
         } else if (accion === 'reagendar') {
             if (!nuevaHora || !nuevaFecha) {
                 return res.status(400).json({ success: false, msg: 'Falta nuevaHora o nuevaFecha' });
             }
-            const slotNuevo = await AgendaSlot.findOne({
-                barberId: reserva.barberId,
-                fecha:    nuevaFecha,
-                hora:     nuevaHora,
-                status:   'disponible'
-            });
-            if (!slotNuevo) {
-                return res.status(400).json({ success: false, msg: 'El horario propuesto no está disponible' });
-            }
-            await AgendaSlot.findOneAndUpdate(
-                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
-                { $set: { status: 'disponible', appointmentId: null, clientId: null } }
-            );
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
                 { $set: { status: 'reagendada', hora: nuevaHora, fecha: nuevaFecha } }
             );
-            await AgendaSlot.findByIdAndUpdate(slotNuevo._id, {
-                $set: { status: 'ocupado', appointmentId: reserva._id, clientId: reserva.userId }
-            });
             res.status(200).json({ success: true, msg: `Reagendada para ${nuevaFecha} a las ${nuevaHora}` });
 
+        // ── LLEGAR ────────────────────────────────────────────────
         } else if (accion === 'llegar') {
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
-                { $set: { status: 'en_proceso' } }
+                { $set: { status: 'en_proceso', horaLlegada: new Date() } }
             );
             res.status(200).json({ success: true, msg: 'Llegada registrada' });
 
+        // ── FINALIZAR ─────────────────────────────────────────────
         } else if (accion === 'finalizar') {
+            const horaFin     = new Date();
+            const horaLlegada = reserva.horaLlegada;
+
+            // Calcular duración real desde que llegó hasta que finalizó
+            let duracionReal = null;
+            if (horaLlegada) {
+                duracionReal = Math.round((horaFin - new Date(horaLlegada)) / 60000);
+            }
+
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
-                { $set: { status: 'completada' } }
+                { $set: { status: 'completada', horaFin, duracionReal } }
             );
-            await AgendaSlot.findOneAndUpdate(
-                { barberId: reserva.barberId, fecha: reserva.fecha, hora: reserva.hora },
+
+            // Actualizar promedio por combinación de servicios
+            if (duracionReal && duracionReal > 0 && Array.isArray(reserva.servicios) && reserva.servicios.length > 0) {
+                // Clave = servicios ordenados alfabéticamente para consistencia
+                const clave   = [...reserva.servicios].sort().join(',');
+                const barbero = await Barber.findById(reserva.barberId);
+
+                if (barbero) {
+                    const porTipo   = barbero.metricas?.porTipo || {};
+                    const existente = porTipo[clave] || { cantidad: 0, promedioMin: 0 };
+                    const nuevaCant = existente.cantidad + 1;
+                    const nuevoPromedio = Math.round(
+                        ((existente.promedioMin * existente.cantidad) + duracionReal) / nuevaCant
+                    );
+
+                    await Barber.findByIdAndUpdate(reserva.barberId, {
+                        $inc: { 'metricas.totalServicios': 1 },
+                        $set: {
+                            [`metricas.porTipo.${clave}`]: {
+                                cantidad:    nuevaCant,
+                                promedioMin: nuevoPromedio
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Liberar slots
+            await AgendaSlot.updateMany(
+                { barberId: reserva.barberId, fecha: reserva.fecha, appointmentId: reserva._id },
                 { $set: { status: 'pasado', appointmentId: null, clientId: null } }
             );
             await Barber.findByIdAndUpdate(reserva.barberId, { isWorking: false });
-            res.status(200).json({ success: true, msg: 'Servicio finalizado' });
+            res.status(200).json({ success: true, msg: 'Servicio finalizado', duracionReal });
         }
 
     } catch (error) {
@@ -249,15 +306,28 @@ exports.responderSolicitud = async (req, res) => {
         res.status(500).json({ success: false, msg: 'Error del servidor' });
     }
 };
+
+// ─────────────────────────────────────────────────────────────────
+//  getPendientes
+// ─────────────────────────────────────────────────────────────────
 exports.getPendientes = async (req, res) => {
     try {
         const { barberId } = req.params;
-        const db = require('mongoose').connection.db;
+      const mongoose = require('mongoose');
+const db = mongoose.connection.readyState === 1 
+  ? mongoose.connection.db 
+  : null;
+
+if (!db) return res.status(503).json({ success: false, pendientes: [] });
+        const BarberDisponibilidad = require('../models/barberDisponibilidad');
 
         const pendientes = await db.collection('userReservas').find({
             barberId: new mongoose.Types.ObjectId(barberId),
             status:   'pendiente'
         }).sort({ createdAt: 1 }).toArray();
+
+        const disp     = await BarberDisponibilidad.findOne({ barberId });
+        const slotBase = disp?.duracionSlotMin ?? 30;
 
         const enriquecidas = await Promise.all(
             pendientes.map(async (r) => {
@@ -265,6 +335,41 @@ exports.getPendientes = async (req, res) => {
                     { _id: r.userId },
                     { projection: { nombre: 1, telefono: 1 } }
                 );
+
+                let duracionTotal = slotBase;
+                if (disp?.duracionPorServicio?.length > 0 && Array.isArray(r.servicios)) {
+                    let suma = 0;
+                    for (const svc of r.servicios) {
+                        const found = disp.duracionPorServicio.find(
+                            d => d.nombre.toLowerCase() === svc.toLowerCase());
+                        if (found) suma += found.duracionMin;
+                    }
+                    if (suma > 0) duracionTotal = suma;
+                }
+
+                // Verificar si hay promedio real disponible para esta combinación
+                const barbero = await Barber.findById(barberId, { metricas: 1 });
+                if (barbero?.metricas?.totalServicios >= 10) {
+                    const clave     = [...r.servicios].sort().join(',');
+                    const porTipo   = barbero.metricas?.porTipo;
+                    const datoClave = porTipo && porTipo[clave];
+                    if (datoClave?.cantidad >= 10) {
+                        duracionTotal = datoClave.promedioMin;
+                    }
+                }
+
+                let excedeHorario = false;
+                if (disp && r.hora && r.fecha) {
+                    const diaSemana = new Date(r.fecha + 'T12:00:00').getDay();
+                    const diaConfig = disp.diasDisponibles?.find(d => d.dia === diaSemana);
+                    if (diaConfig) {
+                        const horaAMin   = (h) => { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; };
+                        const horaInicio = horaAMin(r.hora);
+                        const horaFin    = horaAMin(diaConfig.finHora);
+                        excedeHorario    = (horaInicio + duracionTotal) > horaFin;
+                    }
+                }
+
                 return {
                     _id:           r._id,
                     clienteNombre: cliente?.nombre   ?? 'Cliente',
@@ -273,15 +378,13 @@ exports.getPendientes = async (req, res) => {
                     hora:          r.hora,
                     fecha:         r.fecha,
                     status:        r.status,
+                    duracionTotal,
+                    excedeHorario,
                 };
             })
         );
 
-        res.status(200).json({
-            success:   true,
-            pendientes: enriquecidas
-        });
-
+        res.status(200).json({ success: true, pendientes: enriquecidas });
     } catch (error) {
         console.error('Error getPendientes:', error);
         res.status(500).json({ success: false, msg: 'Error del servidor' });

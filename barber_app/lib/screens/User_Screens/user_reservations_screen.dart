@@ -1,10 +1,8 @@
-import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:barber_app/config/app_config.dart';
-import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
-import 'package:barber_app/screens/User_Screens/user_perfil_screen.dart';
 
 const _kAzul      = Color(0xFF0D3FA6);
 const _kAzulMedio = Color(0xFF1A5FD4);
@@ -70,17 +68,7 @@ class _UserReservationsScreenState extends State<UserReservationsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: _kBlanco.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.arrow_back_ios_new, color: _kBlanco, size: 16),
-                      ),
-                    ),
+                   
                     const SizedBox(height: 14),
                     const Text('Mis Reservas',
                       style: TextStyle(color: _kBlanco, fontSize: 22, fontWeight: FontWeight.bold)),
@@ -112,7 +100,6 @@ class _UserReservationsScreenState extends State<UserReservationsScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: _buildLiquidBar(),
     );
   }
 
@@ -270,56 +257,6 @@ class _UserReservationsScreenState extends State<UserReservationsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLiquidBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-      height: 72,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              color: _kBlanco.withOpacity(0.25),
-              border: Border.all(color: _kBlanco.withOpacity(0.4), width: 1.5),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildTabItem(Icons.home_filled,    'Inicio',    false, () => Navigator.pop(context)),
-                _buildTabItem(Icons.description,    'Servicios', false, () =>
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserServicesScreen()))),
-                _buildTabItem(Icons.calendar_month, 'Reservas',  true,  () {}),
-                _buildTabItem(Icons.person,         'Perfil',    false, () =>
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserPerfilScreen()))),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabItem(IconData icon, String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 22,
-            color: selected ? Colors.grey.shade500 : _kAzulMedio),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(
-            fontSize: 10,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? Colors.grey.shade500 : _kAzulMedio)),
-        ],
-      ),
     );
   }
 }

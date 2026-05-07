@@ -18,7 +18,8 @@ const _kFondo     = Color(0xFFF0F4FF);
 const _kRojo      = Color(0xFFE8202A);
 
 class UserPerfilScreen extends StatefulWidget {
-  const UserPerfilScreen({super.key});
+    final VoidCallback? onBack;
+  const UserPerfilScreen({super.key, this.onBack});
 
   @override
   State<UserPerfilScreen> createState() => _UserPerfilScreenState();
@@ -320,7 +321,13 @@ class _UserPerfilScreenState extends State<UserPerfilScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+  if (widget.onBack != null) {
+    widget.onBack!();
+  } else {
+    Navigator.pop(context);
+  }
+},
                   child: Container(
                     width: 36, height: 36,
                     decoration: BoxDecoration(

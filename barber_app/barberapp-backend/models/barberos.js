@@ -29,6 +29,16 @@ const BarberSchema = new mongoose.Schema({
   estado:       String,
   fechaRegistro: Date,
   favoritedBy:  [mongoose.Schema.Types.ObjectId],
+  // ── Calificación ─────────────────────────────────────────────────
+calificacion: {
+  promedio:      { type: Number, default: 0 },
+  totalReseñas:  { type: Number, default: 0 },
+},
+// ── Zona de trabajo ──────────────────────────────────────────────
+zonasTrabajo: {
+  radioKm:        { type: Number, default: 10 },
+  zonasFavoritas: { type: [String], default: [] },
+},
 
   // ── Campos que ya tenías en la app móvil ────────────────────────────
   isAvailable:  { type: Boolean, default: false },

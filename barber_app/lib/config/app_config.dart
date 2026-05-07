@@ -5,8 +5,12 @@ class AppConfig {
   // ═══════════════════════════════════════════════
 
   // ── Jeaustin (iPhone físico, red local) ──
-  //static const String ipAddress = '192.168.100.19';
-   static const String ipAddress = '172.16.74.174';
+  //static const String ipAddress = '192.168.100.4';//casa
+  // static const String ipAddress = '172.16.74.174';//Escuela
+
+   //static const String ipAddress= '172.20.10.2';//mi celular
+
+    static const String ipAddress= '172.20.10.4';
 
   // ── Jonathan (iPhone físico, red local) ──
   // static const String ipAddress = '192.168.100.4';

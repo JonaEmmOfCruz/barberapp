@@ -1,5 +1,5 @@
 const ServiceCard = require('../models/barberCardService');
-const Appointment = require('../models/barberAppointment');
+
 const mongoose = require('mongoose');
 const { actualizarMetricas } = require('./barberdisponibilidadController');
 

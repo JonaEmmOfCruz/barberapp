@@ -14,9 +14,6 @@ import 'package:barber_app/screens/User_Screens/user_reservations_screen.dart';
 import 'package:barber_app/screens/User_Screens/user_services_screen.dart';
 import 'package:barber_app/config/app_config.dart';
 
-// ─────────────────────────────────────────────
-//  COLORES
-// ─────────────────────────────────────────────
 const _kAzul      = Color(0xFF0D3FA6);
 const _kAzulMedio = Color(0xFF1A5FD4);
 const _kNavy      = Color(0xFF1A1A2E);
@@ -39,29 +36,36 @@ class UserHomeScreen extends StatefulWidget {
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
   final String baseUrl = AppConfig.baseUrl;
+  int _selectedIndex = 0;
 
   String? _profileImageUrl;
-  String  _realAddress      = "Obteniendo ubicación...";
-  List<dynamic> _favoritos  = [];
-  List<dynamic> _reservas   = [];
-  bool _isLoadingFavs       = true;
-  bool _isLoadingReservas   = true;
+  String  _realAddress     = "Obteniendo ubicación...";
+  List<dynamic> _favoritos = [];
+  List<dynamic> _reservas  = [];
+  bool _isLoadingFavs      = true;
+  bool _isLoadingReservas  = true;
 
   @override
   void initState() {
     super.initState();
-     
     _initData();
   }
 
+  // Esta es la función que llama RefreshIndicator
   Future<void> _initData() async {
-    await _loadUserPhoto();
-    _handleLocationLogic();
-    _fetchFavoritos();
-    _fetchReservasRecientes();
+    setState(() {
+      _isLoadingFavs = true;
+      _isLoadingReservas = true;
+    });
+    
+    await Future.wait([
+      _loadUserPhoto(),
+      _handleLocationLogic(),
+      _fetchFavoritos(),
+      _fetchReservasRecientes(),
+    ]);
   }
 
-  // ── UBICACIÓN ─────────────────────────────────────────────────────
   Future<void> _handleLocationLogic() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     bool isSimulator = false;
@@ -74,7 +78,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         isSimulator = !info.isPhysicalDevice;
       }
     } catch (_) {}
-
     if (isSimulator) {
       setState(() => _realAddress = "C. Falsa #123, Zapopan (Simulador)");
     } else {
@@ -85,36 +88,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Future<void> _determineRealPosition() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => _realAddress = "Activa tu GPS");
-        return;
-      }
+      if (!serviceEnabled) { setState(() => _realAddress = "Activa tu GPS"); return; }
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _realAddress = "Permiso denegado");
-          return;
-        }
+        if (permission == LocationPermission.denied) { setState(() => _realAddress = "Permiso denegado"); return; }
       }
-      if (permission == LocationPermission.deniedForever) {
-        setState(() => _realAddress = "Habilita la ubicación en Ajustes");
-        return;
-      }
+      if (permission == LocationPermission.deniedForever) { setState(() => _realAddress = "Habilita la ubicación en Ajustes"); return; }
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-      ).timeout(const Duration(seconds: 10));
-      List<Placemark> p = await placemarkFromCoordinates(
-        position.latitude, position.longitude);
-      if (p.isNotEmpty) {
-        setState(() => _realAddress = "${p[0].street}, ${p[0].locality}");
-      }
-    } catch (e) {
+        desiredAccuracy: LocationAccuracy.medium).timeout(const Duration(seconds: 10));
+      List<Placemark> p = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (p.isNotEmpty) setState(() => _realAddress = "${p[0].street}, ${p[0].locality}");
+    } catch (_) {
       setState(() => _realAddress = "Ubicación no disponible");
     }
   }
 
-  // ── DATOS ─────────────────────────────────────────────────────────
   Future<void> _loadUserPhoto() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _profileImageUrl = prefs.getString('profileImage'));
@@ -122,43 +111,32 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   Future<void> _fetchFavoritos() async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/api/barbers/favorites/${widget.userId}'));
+      final res = await http.get(Uri.parse('$baseUrl/api/barbers/favorites/${widget.userId}'));
+     
       if (res.statusCode == 200) {
-        setState(() {
-          _favoritos       = jsonDecode(res.body);
-          _isLoadingFavs   = false;
-        });
+        setState(() { _favoritos = jsonDecode(res.body); _isLoadingFavs = false; });
       } else {
         setState(() => _isLoadingFavs = false);
       }
-    } catch (_) {
-      setState(() => _isLoadingFavs = false);
-    }
+    } catch (_) { setState(() => _isLoadingFavs = false); }
   }
 
- Future<void> _fetchReservasRecientes() async {
-  try {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/reservas/user/${widget.userId}'));
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as List;
-      setState(() {
-        // Solo mostrar las que están en curso
-        _reservas = data
-            .where((r) => ['pendiente', 'aceptada', 'reagendada']
-                .contains(r['status']))
-            .take(3)
-            .toList();
-        _isLoadingReservas = false;
-      });
-    } else {
-      setState(() => _isLoadingReservas = false);
-    }
-  } catch (_) {
-    setState(() => _isLoadingReservas = false);
+  Future<void> _fetchReservasRecientes() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/reservas/user/${widget.userId}'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as List;
+        setState(() {
+          _reservas = data
+              .where((r) => ['pendiente', 'aceptada', 'reagendada'].contains(r['status']))
+              .take(3).toList();
+          _isLoadingReservas = false;
+        });
+      } else {
+        setState(() => _isLoadingReservas = false);
+      }
+    } catch (_) { setState(() => _isLoadingReservas = false); }
   }
-}
 
   Future<void> _removeFavorite(String barberId) async {
     try {
@@ -171,29 +149,54 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     } catch (_) {}
   }
 
-  // ── NAVEGACIÓN ────────────────────────────────────────────────────
   void _goToServicio() {
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => UserMapScreen(userId: widget.userId, userName: widget.userName)));
   }
 
   Future<void> _goToAgenda() async {
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (_) => UserAgendaScreen(userId: widget.userId)));
-    setState(() => _isLoadingFavs = true);
-    _fetchFavoritos();
-  }
+  // Esperamos a que la pantalla de agenda se cierre
+  final debeRefrescar = await Navigator.push(
+    context, 
+    MaterialPageRoute(builder: (_) => UserAgendaScreen(userId: widget.userId))
+  );
 
-  // ─────────────────────────────────────────────
-  //  BUILD
-  // ─────────────────────────────────────────────
+  // Si recibimos el 'true' que enviamos arriba, recargamos los datos
+  if (debeRefrescar == true) {
+    _initData(); // Esto recarga la lista de favoritos en el Home
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kFondo,
       extendBody: true,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildHomeContent(),
+          const UserServicesScreen(),
+          UserReservationsScreen(userId: widget.userId),
+          UserPerfilScreen(
+            onBack: () => setState(() => _selectedIndex = 0),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildLiquidBar(),
+    );
+  }
+
+  // ── HOME CONTENT CON REFRESH INDICATOR ────────────────────────────
+  Widget _buildHomeContent() {
+    return RefreshIndicator(
+      onRefresh: _initData, // Llama a la carga completa de datos
+      color: _kAzul,
+      backgroundColor: _kBlanco,
+      edgeOffset: 20, // Ajuste para que baje un poco el indicador
+      child: CustomScrollView(
+        // AlwaysScrollable permite que el Refresh funcione aunque no haya mucho contenido
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         slivers: [
           SliverToBoxAdapter(child: _buildHeader()),
           SliverToBoxAdapter(child: _buildActionCards()),
@@ -201,7 +204,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
-      bottomNavigationBar: _buildLiquidBar(),
     );
   }
 
@@ -209,6 +211,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Widget _buildHeader() {
     return Container(
       color: _kAzul,
+      width: double.infinity,
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 20,
         left: 24, right: 24, bottom: 28,
@@ -229,22 +232,24 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     style: const TextStyle(color: _kBlanco, fontSize: 24, fontWeight: FontWeight.bold)),
                 ],
               ),
-              // Avatar
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _kBlanco.withOpacity(0.4), width: 2),
-                  color: _kBlanco.withOpacity(0.15),
-                  image: _profileImageUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage('$baseUrl$_profileImageUrl'),
-                          fit: BoxFit.cover)
+              GestureDetector(
+                onTap: () => setState(() => _selectedIndex = 3),
+                child: Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _kBlanco.withOpacity(0.4), width: 2),
+                    color: _kBlanco.withOpacity(0.15),
+                    image: _profileImageUrl != null
+                        ? DecorationImage(
+                            image: NetworkImage('$baseUrl$_profileImageUrl'),
+                            fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: _profileImageUrl == null
+                      ? Icon(Icons.person, color: _kBlanco.withOpacity(0.8), size: 22)
                       : null,
                 ),
-                child: _profileImageUrl == null
-                    ? Icon(Icons.person, color: _kBlanco.withOpacity(0.8), size: 22)
-                    : null,
               ),
             ],
           ),
@@ -273,48 +278,35 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       child: Row(
         children: [
           Expanded(child: _buildActionCard(
-            titulo:    'Servicio ahora',
-            subtitulo: 'Barbero a domicilio',
-            icon:      _iconServicio(),
-            onTap:     _goToServicio,
-          )),
+            titulo: 'Servicio ahora', subtitulo: 'Barbero a domicilio',
+            icon: _iconServicio(), onTap: _goToServicio)),
           const SizedBox(width: 12),
           Expanded(child: _buildActionCard(
-            titulo:    'Reservar cita',
-            subtitulo: 'Elige día y hora',
-            icon:      _iconCalendario(),
-            onTap:     _goToAgenda,
-          )),
+            titulo: 'Reservar cita', subtitulo: 'Elige día y hora',
+            icon: _iconCalendario(), onTap: _goToAgenda)),
         ],
       ),
     );
   }
 
   Widget _buildActionCard({
-    required String titulo,
-    required String subtitulo,
-    required Widget icon,
-    required VoidCallback onTap,
+    required String titulo, required String subtitulo,
+    required Widget icon, required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 150,
-        decoration: BoxDecoration(
-          color: _kNavy,
-          borderRadius: BorderRadius.circular(22),
-        ),
+        decoration: BoxDecoration(color: _kNavy, borderRadius: BorderRadius.circular(22)),
         child: Stack(
           children: [
-            // Glow azul en esquina inferior derecha
             Positioned(
               bottom: -20, right: -20,
               child: Container(
                 width: 90, height: 90,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _kAzulMedio.withOpacity(0.3),
-                ),
+                  color: _kAzulMedio.withOpacity(0.3)),
               ),
             ),
             Padding(
@@ -326,8 +318,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     width: 46, height: 46,
                     decoration: BoxDecoration(
                       color: _kBlanco.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                      borderRadius: BorderRadius.circular(14)),
                     child: Center(child: icon),
                   ),
                   const Spacer(),
@@ -345,16 +336,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  Widget _iconServicio() {
-    return SizedBox(
-      width: 26, height: 26,
-      child: CustomPaint(painter: _PinTijerasPainter()),
-    );
-  }
+  Widget _iconServicio() => SizedBox(
+    width: 26, height: 26,
+    child: CustomPaint(painter: _PinTijerasPainter()));
 
-  Widget _iconCalendario() {
-    return const Icon(Icons.calendar_month_rounded, color: _kBlanco, size: 22);
-  }
+  Widget _iconCalendario() =>
+    const Icon(Icons.calendar_month_rounded, color: _kBlanco, size: 22);
 
   // ── DOS COLUMNAS ──────────────────────────────────────────────────
   Widget _buildDosColumnas() {
@@ -371,7 +358,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // ── COLUMNA RESERVAS ──────────────────────────────────────────────
   Widget _buildColReservas() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,17 +368,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             const Text('Mis reservas',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _kNavy)),
             GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => UserReservationsScreen(userId: widget.userId))),
-              child: Text('Ver más',
+              onTap: () => setState(() => _selectedIndex = 2),
+              child: const Text('Ver más',
                 style: TextStyle(fontSize: 11, color: _kAzulMedio, fontWeight: FontWeight.w500)),
             ),
           ],
         ),
         const SizedBox(height: 10),
         if (_isLoadingReservas)
-          const Center(child: SizedBox(width: 20, height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: _kAzulMedio)))
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _kAzulMedio)),
+          ))
         else if (_reservas.isEmpty)
           _buildEmptyCard('Sin reservas\naún')
         else
@@ -402,55 +390,45 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 
   Widget _buildMiniReservaCard(dynamic r) {
-    final String nombre  = r['barberoNombre'] ?? 'Barbero';
-    final String fecha   = r['fecha']?.toString().split('T')[0] ?? '';
-    final String hora    = r['hora'] ?? '';
-    final String status  = r['status'] ?? 'pendiente';
+    final String? foto = r['profileImage'];
+    final String nombre = r['barberoNombre'] ?? 'Barbero';
+    final String fecha  = r['fecha']?.toString().split('T')[0] ?? '';
+    final String hora   = r['hora'] ?? '';
+    final String status = r['status'] ?? 'pendiente';
 
     Color statusColor;
     String statusLabel;
     switch (status) {
-      case 'aceptada':   statusColor = const Color(0xFF1565C0); statusLabel = 'Aceptada';   break;
-      case 'completada': statusColor = const Color(0xFF2E7D32); statusLabel = 'Completada'; break;
-      case 'rechazada':  statusColor = Colors.red;              statusLabel = 'Rechazada';  break;
-      case 'reagendada': statusColor = Colors.orange;           statusLabel = 'Reagendada'; break;
-      default:           statusColor = const Color(0xFF1565C0); statusLabel = 'Pendiente';
+      case 'aceptada':  statusColor = const Color(0xFF1565C0); statusLabel = 'Aceptada';  break;
+      case 'reagendada': statusColor = Colors.orange;          statusLabel = 'Reagendada'; break;
+      default:          statusColor = const Color(0xFF1565C0); statusLabel = 'Pendiente';
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _kBlanco,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5),
-      ),
+        color: _kBlanco, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(width: 32, height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF4FF),
-                  borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(nombre,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-            ],
-          ),
+          Row(children: [
+            Container(width: 32, height: 32,
+              decoration: BoxDecoration(color: const Color(0xFFEEF4FF), borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(nombre,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
+              maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ]),
           const SizedBox(height: 6),
-          Text('$fecha · $hora',
-            style: const TextStyle(fontSize: 10, color: Color(0xFF8892B0))),
+          Text('$fecha · $hora', style: const TextStyle(fontSize: 10, color: Color(0xFF8892B0))),
           const SizedBox(height: 5),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20)),
+              color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
             child: Text(statusLabel,
               style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor)),
           ),
@@ -459,7 +437,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  // ── COLUMNA FAVORITOS ─────────────────────────────────────────────
   Widget _buildColFavoritos() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,15 +448,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _kNavy)),
             GestureDetector(
               onTap: _goToAgenda,
-              child: Text('Explorar',
+              child: const Text('Explorar',
                 style: TextStyle(fontSize: 11, color: _kAzulMedio, fontWeight: FontWeight.w500)),
             ),
           ],
         ),
         const SizedBox(height: 10),
         if (_isLoadingFavs)
-          const Center(child: SizedBox(width: 20, height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: _kAzulMedio)))
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: _kAzulMedio)),
+          ))
         else if (_favoritos.isEmpty)
           _buildEmptyCard('Agrega\nfavoritos')
         else
@@ -497,47 +477,35 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _kBlanco,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5),
-      ),
+        color: _kBlanco, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
       child: Row(
         children: [
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFEEF4FF),
+              shape: BoxShape.circle, color: const Color(0xFFEEF4FF),
               image: foto != null
                   ? DecorationImage(image: NetworkImage('$baseUrl$foto'), fit: BoxFit.cover)
-                  : null,
-            ),
+                  : null),
             child: foto == null
                 ? const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)
-                : null,
-          ),
+                : null),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(nombre,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
+          Expanded(child: Text(nombre,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
           GestureDetector(
             onTap: _goToAgenda,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF4FF),
-                borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: const Color(0xFFEEF4FF), borderRadius: BorderRadius.circular(8)),
               child: const Text('Agendar',
-                style: TextStyle(fontSize: 10, color: _kAzulMedio, fontWeight: FontWeight.bold)),
-            ),
-          ),
+                style: TextStyle(fontSize: 10, color: _kAzulMedio, fontWeight: FontWeight.bold)))),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () => _removeFavorite(barberId),
-            child: const Icon(Icons.favorite, color: Colors.red, size: 16),
-          ),
+            child: const Icon(Icons.favorite, color: Colors.red, size: 16)),
         ],
       ),
     );
@@ -548,22 +516,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kBlanco,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFC8D6FF), width: 0.5,
-          style: BorderStyle.solid),
-      ),
-      child: Text(texto,
-        textAlign: TextAlign.center,
+        color: _kBlanco, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFC8D6FF), width: 0.5)),
+      child: Text(texto, textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 11, color: Color(0xFF8892B0))),
     );
   }
 
   // ── LIQUID GLASS BAR ──────────────────────────────────────────────
   Widget _buildLiquidBar() {
+     if (_selectedIndex == 3) return const SizedBox.shrink(); 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-      height: 72,
+      height: 80,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
@@ -572,18 +537,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(30),
               color: _kBlanco.withOpacity(0.25),
-              border: Border.all(color: _kBlanco.withOpacity(0.4), width: 1.5),
-            ),
+              border: Border.all(color: _kBlanco.withOpacity(0.4), width: 1.5)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildTabItem(Icons.home_filled,    'Inicio',    true,  () {}),
-                _buildTabItem(Icons.description,    'Servicios', false, () =>
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const UserServicesScreen()))),
-                _buildTabItem(Icons.calendar_month, 'Reservas',  false, () =>
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => UserReservationsScreen(userId: widget.userId)))),
-                _buildTabItem(Icons.person,         'Perfil',    false, () =>
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const UserPerfilScreen()))),
+                _buildTabItem(Icons.home_filled,    'Inicio',    0),
+                _buildTabItem(Icons.description,    'Servicios', 1),
+                _buildTabItem(Icons.calendar_month, 'Reservas',  2),
+                _buildTabItem(Icons.person,         'Perfil',    3),
               ],
             ),
           ),
@@ -592,46 +553,40 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  Widget _buildTabItem(IconData icon, String label, bool selected, VoidCallback onTap) {
+  Widget _buildTabItem(IconData icon, String label, int index) {
+    final selected = _selectedIndex == index;
     return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 22,
-            // Azul sin seleccionar, gris seleccionado
-            color: selected ? Colors.grey.shade500 : _kAzulMedio),
-          const SizedBox(height: 4),
-          Text(label,
-            style: TextStyle(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22,
+              color: selected ? Colors.grey.shade500 : _kAzulMedio),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(
               fontSize: 10,
               fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: selected ? Colors.grey.shade500 : _kAzulMedio,
-            )),
-        ],
+              color: selected ? Colors.grey.shade500 : _kAzulMedio)),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── CUSTOM PAINTER: Pin con tijeras ───────────────────────────────
+// ── CUSTOM PAINTER ──────────────────────────────────────────────
 class _PinTijerasPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
+      ..color = Colors.white ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke ..strokeCap = StrokeCap.round;
     final paintFill = Paint()
-      ..color = Colors.white.withOpacity(0.8)
-      ..style = PaintingStyle.fill;
-
+      ..color = Colors.white.withOpacity(0.8) ..style = PaintingStyle.fill;
     final cx = size.width / 2;
-
-    // Pin
     final pinPath = Path();
     pinPath.moveTo(cx, size.height * 0.95);
     pinPath.cubicTo(cx - 2, size.height * 0.7, cx - size.width * 0.45, size.height * 0.55,
@@ -642,23 +597,15 @@ class _PinTijerasPainter extends CustomPainter {
         cx, size.height * 0.95);
     pinPath.close();
     canvas.drawPath(pinPath, paint);
-
-    // Tijeras dentro del pin
     final ty = size.height * 0.3;
     final tr = size.width * 0.1;
-
-    // Circulo izquierdo
     canvas.drawCircle(Offset(cx - size.width * 0.15, ty), tr, paintFill);
-    // Circulo derecho
     canvas.drawCircle(Offset(cx + size.width * 0.15, ty), tr, paintFill);
-
-    // Aspas de las tijeras
     canvas.drawLine(Offset(cx - size.width * 0.22, ty - tr),
         Offset(cx + size.width * 0.22, ty + tr), paint);
     canvas.drawLine(Offset(cx + size.width * 0.22, ty - tr),
         Offset(cx - size.width * 0.22, ty + tr), paint);
   }
-
   @override
   bool shouldRepaint(_) => false;
 }

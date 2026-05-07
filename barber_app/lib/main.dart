@@ -14,16 +14,16 @@ void main() async{
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(const BarberGoApp());
+  runApp(const BarberApp());
 }
 
-class BarberGoApp extends StatelessWidget {
-  const BarberGoApp({super.key});
+class BarberApp extends StatelessWidget {
+  const BarberApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Barbergo',
+      title: 'BarberApp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
