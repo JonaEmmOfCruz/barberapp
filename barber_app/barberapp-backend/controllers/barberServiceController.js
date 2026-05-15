@@ -97,103 +97,86 @@ exports.finalizarServicio = async (req, res) => {
 exports.getStats = async (req, res) => {
   try {
     const { barberId } = req.params;
-    const { filtro } = req.query;
+    const { filtro }   = req.query;
+    const mongoose     = require('mongoose');
+    const db           = mongoose.connection.db;
 
     let fechaFiltro = new Date();
-    if (filtro === 'Hoy')   fechaFiltro.setHours(0, 0, 0, 0);
+    if (filtro === 'Hoy')    fechaFiltro.setHours(0, 0, 0, 0);
     if (filtro === 'Semana') fechaFiltro.setDate(fechaFiltro.getDate() - 7);
     if (filtro === 'Mes')    fechaFiltro.setMonth(fechaFiltro.getMonth() - 1);
 
+    const ServiceRequest = require('../models/userServiceRequest');
     const barberObjectId = new mongoose.Types.ObjectId(barberId);
 
-    // ── Ganancias de Runner (ServiceCard) ───────────────────────────
-    const statsRunner = await ServiceCard.aggregate([
-      { $match: { barberId: barberObjectId, fecha: { $gte: fechaFiltro }, status: 'finalizado' } },
-      { $group: { _id: null, total: { $sum: '$ganancia' } } }
-    ]);
-
-    // ── Ganancias de Citas (Appointment) ────────────────────────────
-    const statsCitas = await Appointment.aggregate([
-      { $match: { barberId: barberObjectId, createdAt: { $gte: fechaFiltro }, status: 'finalizada' } },
-      { $group: { _id: null, total: { $sum: '$precioTotal' } } }
-    ]);
-
-    const gananciaRunner = statsRunner[0]?.total ?? 0;
-    const gananciaCitas  = statsCitas[0]?.total  ?? 0;
-    const gananciaTotal  = gananciaRunner + gananciaCitas;
-
-    // ── Lista unificada ordenada por fecha ───────────────────────────
-    const listaRunner = await ServiceCard.find({
-      barberId: barberObjectId,
-      fecha: { $gte: fechaFiltro },
-      status: 'finalizado'
-    }).sort({ fecha: -1 }).lean();
-
-    const listaCitas = await Appointment.find({
-      barberId: barberObjectId,
-      createdAt: { $gte: fechaFiltro },
-      status: 'finalizada'
+    // ── Runner (servicerequests) ──────────────────────────────────
+    const runnerDocs = await ServiceRequest.find({
+      barberoId: barberId,
+      estado:    'finalizado',
+      createdAt: { $gte: fechaFiltro }
     }).sort({ createdAt: -1 }).lean();
 
-    // ── Reservas agendadas completadas (userReservas) ─────────────
-const db = require('mongoose').connection.db;
-const listaReservas = await db.collection('userReservas').find({
-    barberId: barberObjectId,
-    status:   'completada',
-    createdAt: { $gte: fechaFiltro }
-}).sort({ createdAt: -1 }).toArray();
+    // Enriquecer con nombre del cliente
+    const listaRunner = await Promise.all(runnerDocs.map(async (r) => {
+      const cliente = await db.collection('users').findOne(
+        { _id: new mongoose.Types.ObjectId(r.userId) },
+        { projection: { nombre: 1, profileImage: 1 } }
+      );
+      return {
+        _id:           r._id,
+        tipo:          'Runner',
+        servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Servicio runner',
+        ganancia:      r.costoTotal ?? 0,
+        duracionMin:   r.horaFin && r.horaLlegada
+                         ? Math.round((new Date(r.horaFin) - new Date(r.horaLlegada)) / 60000)
+                         : 0,
+        fecha:         r.createdAt,
+        clienteNombre: cliente?.nombre ?? 'Cliente',
+        clienteFoto:   cliente?.profileImage ?? null,
+      };
+    }));
 
-// Enriquecer con nombre del cliente
-const listaReservasNormalizada = await Promise.all(
-    listaReservas.map(async (r) => {
-        const cliente = await db.collection('users').findOne(
-            { _id: r.userId },
-            { projection: { nombre: 1 } }
-        );
-        return {
-            _id:           r._id,
-            tipo:          'Cita',
-            servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Cita agendada',
-            ganancia:      0,
-            duracionMin:   0,
-            fecha:         r.createdAt ?? new Date(),
-            clienteNombre: cliente?.nombre ?? 'Cliente',
-        };
-    })
-);
+    // ── Citas agendadas (userReservas) ────────────────────────────
+    const reservasDocs = await db.collection('userReservas').find({
+      barberId: barberObjectId,
+      status:   'completada',
+      createdAt: { $gte: fechaFiltro }
+    }).sort({ createdAt: -1 }).toArray();
 
-    // Normalizamos los campos para que Flutter reciba estructura uniforme
-    const historialNormalizado = [
-      ...listaRunner.map(s => ({
-        _id:            s._id,
-        tipo:           'Runner',                  // badge en la card
-        servicios:      s.servicios,
-        ganancia:       s.ganancia,
-        duracionMin:    s.duracionTotalMinutos,
-        fecha:          s.fecha,
-        clienteNombre:  null                       // Runner no siempre tiene nombre
-      })),
-      ...listaCitas.map(a => ({
-        _id:            a._id,
-        tipo:           'Cita',                    // badge en la card
-        servicios:      'Cita agendada',
-        ganancia:       a.precioTotal ?? 0,
-        duracionMin:    a.horaFin && a.horaLlegada
-                          ? Math.round((new Date(a.horaFin) - new Date(a.horaLlegada)) / 60000)
-                          : 0,
-        fecha:          a.createdAt,
-        clienteNombre:  a.clienteNombre ?? null
-      })),
-      ...listaReservasNormalizada
-    ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // más reciente primero
+    const listaCitas = await Promise.all(reservasDocs.map(async (r) => {
+      const cliente = await db.collection('users').findOne(
+        { _id: r.userId },
+        { projection: { nombre: 1, profileImage: 1 } }
+      );
+      return {
+        _id:           r._id,
+        tipo:          'Cita',
+        servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Cita agendada',
+        ganancia:      r.precioTotal ?? 0,
+        duracionMin:   0,
+        fecha:         r.createdAt ?? new Date(),
+        clienteNombre: cliente?.nombre ?? 'Cliente',
+        clienteFoto:   cliente?.profileImage ?? null,
+      };
+    }));
+
+    // ── Totales ───────────────────────────────────────────────────
+    const gananciaRunner = listaRunner.reduce((sum, s) => sum + s.ganancia, 0);
+    const gananciaCitas  = listaCitas.reduce((sum, s) => sum + s.ganancia, 0);
+    const gananciaTotal  = gananciaRunner + gananciaCitas;
+
+    // ── Lista unificada ───────────────────────────────────────────
+    const historial = [...listaRunner, ...listaCitas]
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
     res.status(200).json({
       gananciaTotal,
       desglose: { runner: gananciaRunner, citas: gananciaCitas },
-      servicios: historialNormalizado
+      servicios: historial
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor', error });
+    console.error('Error getStats:', error.message);
+    res.status(500).json({ message: 'Error en el servidor', error: error.message });
   }
 };

@@ -440,63 +440,64 @@ Map<String, dynamic>? _desglosePrecio;
   }
 
   Future<void> _confirmarServicio() async {
-    if (_selectedServices.isNotEmpty) _addServiceAndClear();
-    if (_finalServiceList.isEmpty) { _mostrarSnack('Añade al menos un servicio'); return; }
+  if (_selectedServices.isNotEmpty) _addServiceAndClear();
+  if (_finalServiceList.isEmpty) { _mostrarSnack('Añade al menos un servicio'); return; }
 
-    final primerGrupo = _finalServiceList.first;
-    final tipo        = primerGrupo['tipo'] as String?;
-    final servicios   = primerGrupo['servicios'] as List<String>?;
-    final lat = _currentLatLng?.latitude;
-    final lng = _currentLatLng?.longitude;
+  // ← combina todos los servicios de todos los grupos en uno solo
+  final todosLosServicios = _finalServiceList
+      .expand((grupo) => List<String>.from(grupo['servicios'] as List))
+      .toList();
 
-    if (tipo == null || servicios == null || servicios.isEmpty) { _mostrarSnack('Servicio inválido'); return; }
-    if (lat == null || lng == null) { _mostrarSnack('Ubicación no disponible'); return; }
+  final lat = _currentLatLng?.latitude;
+  final lng = _currentLatLng?.longitude;
 
-    setState(() { _isLoadingService = true; _isExpanded = false; });
+  if (todosLosServicios.isEmpty) { _mostrarSnack('Servicio inválido'); return; }
+  if (lat == null || lng == null) { _mostrarSnack('Ubicación no disponible'); return; }
 
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/service-requests'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId':    widget.userId,
-          'tipo':      tipo,
-          'servicios': servicios,
-          'ubicacion': {
-            'direccion':   _realAddress,
-            'coordenadas': {'lat': lat, 'lng': lng},
-          },
-        }),
-      );
+  setState(() { _isLoadingService = true; _isExpanded = false; });
 
-      if (response.statusCode == 201) {
-        final data      = jsonDecode(response.body);
-        final serviceId = data['ServiceRequestId']?.toString();
-        if (serviceId == null) {
-          setState(() => _isLoadingService = false);
-          _mostrarSnack('Error al procesar la respuesta');
-          return;
-        }
-        setState(() => _solicitudId = serviceId);
-        _startPolling(serviceId);
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/service-requests'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'userId':    widget.userId,
+        'tipo':      'propio',
+        'servicios': todosLosServicios, // ← array combinado
+        'ubicacion': {
+          'direccion':   _realAddress,
+          'coordenadas': {'lat': lat, 'lng': lng},
+        },
+      }),
+    );
 
-        // Timeout 2 min
-        Future.delayed(const Duration(minutes: 2), () {
-          if (mounted && _isLoadingService && !_barberoAsignado) {
-            _pollingTimer?.cancel();
-            setState(() => _isLoadingService = false);
-            _mostrarSnack('No se encontró barbero disponible. Intenta de nuevo.');
-          }
-        });
-      } else {
+    if (response.statusCode == 201) {
+      final data      = jsonDecode(response.body);
+      final serviceId = data['ServiceRequestId']?.toString();
+      if (serviceId == null) {
         setState(() => _isLoadingService = false);
-        _mostrarSnack('Error al crear la solicitud');
+        _mostrarSnack('Error al procesar la respuesta');
+        return;
       }
-    } catch (_) {
+      setState(() => _solicitudId = serviceId);
+      _startPolling(serviceId);
+
+      Future.delayed(const Duration(minutes: 2), () {
+        if (mounted && _isLoadingService && !_barberoAsignado) {
+          _pollingTimer?.cancel();
+          setState(() => _isLoadingService = false);
+          _mostrarSnack('No se encontró barbero disponible. Intenta de nuevo.');
+        }
+      });
+    } else {
       setState(() => _isLoadingService = false);
-      _mostrarSnack('Error de conexión');
+      _mostrarSnack('Error al crear la solicitud');
     }
+  } catch (_) {
+    setState(() => _isLoadingService = false);
+    _mostrarSnack('Error de conexión');
   }
+}
 
   void _mostrarSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -861,123 +862,259 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildExpandedBody() {
-    return SingleChildScrollView(
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+  return SingleChildScrollView(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Handle ───────────────────────────────────────────
         Center(child: Container(width: 36, height: 4,
-          decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)))),
-        const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Row(children: [
-            Container(width: 4, height: 18,
-              decoration: BoxDecoration(color: _kAzulMedio, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(width: 8),
-            const Text('Selecciona servicios',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _kNavy)),
-          ]),
-          GestureDetector(
-            onTap: () => setState(() => _isExpanded = false),
-            child: Container(
-              width: 30, height: 30,
-              decoration: BoxDecoration(color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.close, size: 16, color: _kNavy))),
-        ]),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8, runSpacing: 8,
-          children: _servicios.map((s) {
-            final sel = _selectedServices.contains(s['nombre']);
-            return GestureDetector(
-              onTap: () => setState(() {
-                if (sel) {
-                  _selectedServices.remove(s['nombre']);
-                } else {
-                  _selectedServices.add(s['nombre'] as String);
-                }
-              }),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 20),
+
+        // ── Header ───────────────────────────────────────────
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Solicitar servicio',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kNavy)),
+              Text('Selecciona los servicios por persona',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+            GestureDetector(
+              onTap: () => setState(() => _isExpanded = false),
+              child: Container(
+                width: 34, height: 34,
                 decoration: BoxDecoration(
-                  color: sel ? _kNavy : _kBlanco,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: sel ? _kNavy : const Color(0xFFE0E8FF), width: 0.5)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(s['icono'] as IconData, size: 15,
-                    color: sel ? _kBlanco : Colors.grey.shade600),
-                  const SizedBox(width: 6),
-                  Text(s['nombre'] as String,
-                    style: TextStyle(
-                      color: sel ? _kBlanco : _kNavy,
-                      fontWeight: FontWeight.w700, fontSize: 13)),
-                ]),
-              ),
-            );
-          }).toList(),
+                  color: const Color(0xFFF0F4FF),
+                  borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.close_rounded, size: 17, color: _kNavy))),
+          ],
         ),
-        const SizedBox(height: 14),
-        SizedBox(
+        const SizedBox(height: 20),
+
+        // ── Chips servicios ───────────────────────────────────
+        Container(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _addServiceAndClear,
-            icon: const Icon(Icons.add_circle_outline, size: 16),
-            label: const Text('AÑADIR A LA LISTA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _kAzulMedio,
-              side: const BorderSide(color: Color(0xFFD0DCFF), width: 1),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(vertical: 12)),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F9FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(width: 3, height: 14,
+                  decoration: BoxDecoration(
+                    color: _kAzulMedio,
+                    borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 8),
+                Text(
+                  _finalServiceList.isEmpty
+                      ? 'Persona 1'
+                      : 'Persona ${_finalServiceList.length + 1}',
+                  style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: _kNavy)),
+                const Spacer(),
+                if (_selectedServices.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _kAzulMedio.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20)),
+                    child: Text('${_selectedServices.length} seleccionado${_selectedServices.length != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: _kAzulMedio, fontSize: 10,
+                        fontWeight: FontWeight.w600))),
+              ]),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: _servicios.map((s) {
+                  final sel = _selectedServices.contains(s['nombre']);
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      if (sel) {
+                        _selectedServices.remove(s['nombre']);
+                      } else {
+                        _selectedServices.add(s['nombre'] as String);
+                      }
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: sel ? _kNavy : _kBlanco,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: sel ? _kNavy : const Color(0xFFE0E8FF),
+                          width: sel ? 0 : 0.5),
+                        boxShadow: sel ? [] : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 4, offset: const Offset(0, 2))
+                        ]),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(s['icono'] as IconData,
+                          size: 14,
+                          color: sel ? _kBlanco : Colors.grey.shade500),
+                        const SizedBox(width: 6),
+                        Text(s['nombre'] as String,
+                          style: TextStyle(
+                            color: sel ? _kBlanco : _kNavy,
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                        if (sel) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.check_rounded,
+                            size: 13, color: Colors.white70),
+                        ],
+                      ]),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _addServiceAndClear,
+                  icon: const Icon(Icons.person_add_rounded, size: 15),
+                  label: Text(
+                    _finalServiceList.isEmpty
+                        ? 'Añadir persona'
+                        : 'Añadir otra persona',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kAzulMedio,
+                    foregroundColor: _kBlanco,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0),
+                ),
+              ),
+            ],
           ),
         ),
+
+        // ── Lista personas añadidas ───────────────────────────
         if (_finalServiceList.isNotEmpty) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Row(children: [
-            Container(width: 4, height: 14,
-              decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(width: 8),
-            Text('Servicios añadidos',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            const Icon(Icons.people_alt_rounded, size: 14, color: _kAzulMedio),
+            const SizedBox(width: 6),
+            Text('${_finalServiceList.length} persona${_finalServiceList.length != 1 ? 's' : ''} añadida${_finalServiceList.length != 1 ? 's' : ''}',
+              style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: _kNavy)),
           ]),
           const SizedBox(height: 8),
           ..._finalServiceList.asMap().entries.map((entry) {
             final idx = entry.key;
             final svs = List<String>.from(entry.value['servicios']);
             return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(10)),
+                color: _kBlanco,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8, offset: const Offset(0, 2))
+                ]),
               child: Row(children: [
+                // Avatar persona
                 Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(color: _kNavy, borderRadius: BorderRadius.circular(6)),
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: _kNavy,
+                    borderRadius: BorderRadius.circular(10)),
                   child: Center(child: Text('${idx + 1}',
-                    style: const TextStyle(color: _kBlanco, fontSize: 11, fontWeight: FontWeight.bold)))),
-                const SizedBox(width: 10),
-                Expanded(child: Text(svs.join(', '),
-                  style: const TextStyle(fontSize: 12, color: _kNavy, fontWeight: FontWeight.w500))),
+                    style: const TextStyle(
+                      color: _kBlanco, fontSize: 14,
+                      fontWeight: FontWeight.bold)))),
+                const SizedBox(width: 12),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Persona ${idx + 1}',
+                      style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 2),
+                    Text(svs.join(' · '),
+                      style: const TextStyle(
+                        fontSize: 13, color: _kNavy,
+                        fontWeight: FontWeight.w600)),
+                  ],
+                )),
+                // Badge cantidad servicios
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF4FF),
+                    borderRadius: BorderRadius.circular(8)),
+                  child: Text('${svs.length} svc',
+                    style: const TextStyle(
+                      fontSize: 10, color: _kAzulMedio,
+                      fontWeight: FontWeight.bold))),
+                const SizedBox(width: 8),
                 GestureDetector(
                   onTap: () => setState(() => _finalServiceList.removeAt(idx)),
-                  child: const Icon(Icons.close, size: 16, color: Colors.red)),
+                  child: Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.close_rounded,
+                      size: 15, color: Colors.red))),
               ]),
             );
           }),
         ],
-        const SizedBox(height: 14),
+
+        const SizedBox(height: 16),
+
+        // ── Ubicación ─────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF0F4FF), borderRadius: BorderRadius.circular(14)),
+            color: const Color(0xFFF0F4FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
           child: Row(children: [
-            const Icon(Icons.location_on_rounded, color: _kAzulMedio, size: 18),
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: _kAzulMedio.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.location_on_rounded,
+                color: _kAzulMedio, size: 18)),
             const SizedBox(width: 10),
-            Expanded(child: Text(_realAddress,
-              style: const TextStyle(fontSize: 12, color: _kNavy, fontWeight: FontWeight.w500),
-              maxLines: 2, overflow: TextOverflow.ellipsis)),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Tu ubicación',
+                  style: TextStyle(
+                    fontSize: 10, color: Color(0xFF8892B0),
+                    fontWeight: FontWeight.w500)),
+                Text(_realAddress,
+                  style: const TextStyle(
+                    fontSize: 12, color: _kNavy,
+                    fontWeight: FontWeight.w600),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            )),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () async {
-                final result = await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ChangeLocationScreen(
+                final result = await Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => ChangeLocationScreen(
                     initialAddress:  _realAddress,
                     initialLocation: _currentLatLng)));
                 if (result != null && result is Map<String, dynamic>) {
@@ -990,13 +1127,19 @@ Widget build(BuildContext context) {
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: _kNavy, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: _kNavy,
+                  borderRadius: BorderRadius.circular(8)),
                 child: const Text('Cambiar',
-                  style: TextStyle(fontSize: 11, color: _kBlanco, fontWeight: FontWeight.w600))),
+                  style: TextStyle(
+                    fontSize: 11, color: _kBlanco,
+                    fontWeight: FontWeight.w600))),
             ),
           ]),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
+
+        // ── Botón confirmar ───────────────────────────────────
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -1004,15 +1147,28 @@ Widget build(BuildContext context) {
             style: ElevatedButton.styleFrom(
               backgroundColor: _kNavy,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
-            child: const Text('CONFIRMAR SERVICIO',
-              style: TextStyle(color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 14)),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_outline_rounded,
+                  color: _kBlanco, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  _finalServiceList.isEmpty
+                      ? 'CONFIRMAR SERVICIO'
+                      : 'CONFIRMAR ${_finalServiceList.length + (_selectedServices.isNotEmpty ? 1 : 0)} PERSONA${(_finalServiceList.length + (_selectedServices.isNotEmpty ? 1 : 0)) != 1 ? 'S' : ''}',
+                  style: const TextStyle(
+                    color: _kBlanco, fontWeight: FontWeight.bold, fontSize: 14)),
+              ],
+            ),
           ),
         ),
-      ]),
-    );
-  }
-
+      ],
+    ),
+  );
+}
   Widget _buildLoadingBody() {
   return Column(mainAxisSize: MainAxisSize.min, children: [
     Center(child: Container(width: 36, height: 4,

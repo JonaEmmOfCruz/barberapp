@@ -26,6 +26,7 @@ router.get('/user/:userId', async (req, res) => {
         };
       })
     );
+    
     res.status(200).json(reservasConNombre);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener reservas' });

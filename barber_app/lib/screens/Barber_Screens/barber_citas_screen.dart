@@ -290,32 +290,44 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
 }
 
   Future<void> _responderCita(String citaId, String accion) async {
-    try {
-      final res = await http.put(
-        Uri.parse('$baseUrl/api/citas/$citaId/responder'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'accion': accion}),
-      );
-      if (res.statusCode == 200) {
-        String mensaje;
-        bool esExito = true;
-        switch (accion) {
-          case 'aceptar':   mensaje = 'Cita aceptada';       break;
-          case 'rechazar':  mensaje = 'Cita rechazada'; esExito = false; break;
-          case 'llegar':    mensaje = 'Llegada registrada';   break;
-          case 'finalizar': mensaje = 'Servicio finalizado';  break;
-          default:          mensaje = 'Acción completada';
-        }
-        _mostrarSnack(mensaje, esExito: esExito);
-        _cargarCitasDia(_semana.isNotEmpty ? _semana[_diaSeleccionado].fecha : _fechaHoy());
-      } else {
-        _mostrarSnack('Error al responder la cita');
-      }
-    } catch (_) {
-      _mostrarSnack('Error de conexión');
-    }
-  }
+  try {
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/citas/$citaId/responder'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'accion': accion}),
+    );
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      debugPrint('Respuesta finalizar: ${res.body}'); // ← debug temporal
 
+      if (accion == 'finalizar') {
+        _mostrarSnack('Servicio finalizado', esExito: true);
+        _cargarCitasDia(_semana.isNotEmpty ? _semana[_diaSeleccionado].fecha : _fechaHoy());
+        // Pequeño delay para que el setState termine antes de abrir el sheet
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted && data['desglosePrecio'] != null) {
+          _mostrarDesglosePrecio(data['desglosePrecio'], data['costoTotal']);
+        }
+        return;
+      }
+
+      String mensaje;
+      bool esExito = true;
+      switch (accion) {
+        case 'aceptar':   mensaje = 'Cita aceptada';            break;
+        case 'rechazar':  mensaje = 'Cita rechazada'; esExito = false; break;
+        case 'llegar':    mensaje = 'Llegada registrada';        break;
+        default:          mensaje = 'Acción completada';
+      }
+      _mostrarSnack(mensaje, esExito: esExito);
+      _cargarCitasDia(_semana.isNotEmpty ? _semana[_diaSeleccionado].fecha : _fechaHoy());
+    } else {
+      _mostrarSnack('Error al responder la cita');
+    }
+  } catch (_) {
+    _mostrarSnack('Error de conexión');
+  }
+}
   void _mostrarDialogReagendar(String citaId) {
     TimeOfDay nuevaHora = const TimeOfDay(hour: 10, minute: 0);
     showModalBottomSheet(
@@ -425,29 +437,28 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
       setState(() => _isLoading = false);
     }
   }
+void _generarProximos7Dias() {
+  final hoy         = DateTime.now();
+  final lista       = <DiaAgenda>[];
+  final diasActivos = _diasDisponibles.map((d) => d['dia'] as int).toSet();
+  const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
-  void _generarProximos7Dias() {
-    final hoy        = DateTime.now();
-    final lista      = <DiaAgenda>[];
-    final diasActivos = _diasDisponibles.map((d) => d['dia'] as int).toSet();
-    const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-
-    for (int i = 0; i < 30 && lista.length < 7; i++) {
-      final dia       = hoy.add(Duration(days: i));
-      final diaSemana = dia.weekday % 7;
-      if (diasActivos.contains(diaSemana)) {
-        final fecha = '${dia.year}-${dia.month.toString().padLeft(2,'0')}-${dia.day.toString().padLeft(2,'0')}';
-        lista.add(DiaAgenda(
-          fecha:        fecha,
-          diaSemana:    nombresDias[diaSemana],
-          tieneJornada: true,
-        ));
-      }
+  for (int i = 0; i < 60 && lista.length < 30; i++) {
+    final dia       = hoy.add(Duration(days: i));
+    final diaSemana = dia.weekday % 7;
+    if (diasActivos.contains(diaSemana)) {
+      final fecha = '${dia.year}-${dia.month.toString().padLeft(2,'0')}-${dia.day.toString().padLeft(2,'0')}';
+      lista.add(DiaAgenda(
+        fecha:        fecha,
+        diaSemana:    nombresDias[diaSemana],
+        tieneJornada: true,
+      ));
     }
-
-    setState(() { _semana = lista; _diaSeleccionado = 0; });
-    if (lista.isNotEmpty) _cargarCitasDia(lista[0].fecha);
   }
+
+  setState(() { _semana = lista; _diaSeleccionado = 0; });
+  if (lista.isNotEmpty) _cargarCitasDia(lista[0].fecha);
+}
 
   Future<void> _cargarCitasDia(String fecha) async {
     setState(() => _loadingCitas = true);
@@ -935,4 +946,133 @@ class _BarberAppointmentsScreenState extends State<BarberAppointmentsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
+
+  void _mostrarDesglosePrecio(dynamic desglose, dynamic costoTotal) {
+  final double total      = (costoTotal ?? 0).toDouble();
+  final double base       = (desglose['precioBase']  ?? 0).toDouble();
+  final double traslado   = (desglose['traslado']    ?? 0).toDouble();
+  final double comision   = (desglose['comision']    ?? 0).toDouble();
+  final double iva        = (total - (desglose['subtotal'] ?? 0)).toDouble();
+  final String nivel      = desglose['nivel']        ?? 'bajo';
+
+  Color nivelColor;
+  String nivelLabel;
+  switch (nivel) {
+    case 'alto':  nivelColor = const Color(0xFFF59E0B); nivelLabel = 'Premium ★★★'; break;
+    case 'medio': nivelColor = _kRojo;                  nivelLabel = 'Estándar ★★';  break;
+    default:      nivelColor = Colors.grey;             nivelLabel = 'Básico ★';
+  }
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+
+          // Ícono y título
+          Container(
+            width: 56, height: 56,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded,
+              color: Colors.green, size: 30)),
+          const SizedBox(height: 12),
+          const Text('Servicio completado',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kNegro)),
+          const SizedBox(height: 4),
+          Text('Resumen del cobro',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+          const SizedBox(height: 20),
+
+          // Badge nivel
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: nivelColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: nivelColor.withOpacity(0.3))),
+            child: Text('Tarifa $nivelLabel',
+              style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.bold, color: nivelColor))),
+          const SizedBox(height: 20),
+
+          // Desglose
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                _buildFilaDesglose('Servicios',  '\$${base.toStringAsFixed(0)}',     false),
+                const SizedBox(height: 10),
+                _buildFilaDesglose('Traslado',   '\$${traslado.toStringAsFixed(0)}', false),
+                const SizedBox(height: 10),
+                _buildFilaDesglose('Comisión app (15%)', '\$${comision.toStringAsFixed(0)}', false),
+                const SizedBox(height: 10),
+                _buildFilaDesglose('IVA (16%)',  '\$${iva.toStringAsFixed(0)}',      false),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Divider(height: 1)),
+                _buildFilaDesglose('Total',      '\$${total.toStringAsFixed(0)}',    true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Botón cerrar
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kNegro,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                elevation: 0),
+              child: const Text('Listo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildFilaDesglose(String label, String valor, bool esTotal) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(label,
+        style: TextStyle(
+          fontSize: esTotal ? 15 : 13,
+          fontWeight: esTotal ? FontWeight.bold : FontWeight.normal,
+          color: esTotal ? _kNegro : Colors.grey.shade600)),
+      Text(valor,
+        style: TextStyle(
+          fontSize: esTotal ? 16 : 13,
+          fontWeight: FontWeight.bold,
+          color: esTotal ? _kRojo : _kNegro)),
+    ],
+  );
+}
 }

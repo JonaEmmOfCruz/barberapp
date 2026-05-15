@@ -389,53 +389,65 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  Widget _buildMiniReservaCard(dynamic r) {
-    final String? foto = r['profileImage'];
-    final String nombre = r['barberoNombre'] ?? 'Barbero';
-    final String fecha  = r['fecha']?.toString().split('T')[0] ?? '';
-    final String hora   = r['hora'] ?? '';
-    final String status = r['status'] ?? 'pendiente';
+ Widget _buildMiniReservaCard(dynamic r) {
+  final String? foto  = r['barberoFoto'];          // ← corregido
+  final String nombre = r['barberoNombre'] ?? 'Barbero';
+  final String fecha  = r['fecha']?.toString().split('T')[0] ?? '';
+  final String hora   = r['hora'] ?? '';
+  final String status = r['status'] ?? 'pendiente';
 
-    Color statusColor;
-    String statusLabel;
-    switch (status) {
-      case 'aceptada':  statusColor = const Color(0xFF1565C0); statusLabel = 'Aceptada';  break;
-      case 'reagendada': statusColor = Colors.orange;          statusLabel = 'Reagendada'; break;
-      default:          statusColor = const Color(0xFF1565C0); statusLabel = 'Pendiente';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kBlanco, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(width: 32, height: 32,
-              decoration: BoxDecoration(color: const Color(0xFFEEF4FF), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(nombre,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
-              maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ]),
-          const SizedBox(height: 6),
-          Text('$fecha · $hora', style: const TextStyle(fontSize: 10, color: Color(0xFF8892B0))),
-          const SizedBox(height: 5),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-            child: Text(statusLabel,
-              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor)),
-          ),
-        ],
-      ),
-    );
+  Color statusColor;
+  String statusLabel;
+  switch (status) {
+    case 'aceptada':   statusColor = const Color(0xFF1565C0); statusLabel = 'Aceptada';   break;
+    case 'reagendada': statusColor = Colors.orange;           statusLabel = 'Reagendada'; break;
+    default:           statusColor = const Color(0xFF1565C0); statusLabel = 'Pendiente';
   }
+
+  return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: _kBlanco, borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF4FF),
+              borderRadius: BorderRadius.circular(10),
+              image: foto != null
+                  ? DecorationImage(
+                      image: NetworkImage('$baseUrl$foto'),
+                      fit: BoxFit.cover)
+                  : null),
+            child: foto == null
+                ? const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)
+                : null),
+          const SizedBox(width: 8),
+          Expanded(child: Text(nombre,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ]),
+        const SizedBox(height: 6),
+        Text('$fecha · $hora',
+          style: const TextStyle(fontSize: 10, color: Color(0xFF8892B0))),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20)),
+          child: Text(statusLabel,
+            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor)),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildColFavoritos() {
     return Column(
@@ -468,48 +480,53 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
   }
 
-  Widget _buildMiniFavCard(dynamic b) {
-    final String nombre   = b['nombre'] ?? b['name'] ?? 'Barbero';
-    final String barberId = b['_id']?.toString() ?? b['id']?.toString() ?? '';
-    final String? foto    = b['profileImage'];
+Widget _buildMiniFavCard(dynamic b) {
+  final String nombre   = b['nombre'] ?? b['name'] ?? 'Barbero';
+  final String barberId = b['_id']?.toString() ?? b['id']?.toString() ?? '';
+  final String? foto    = b['profileImage'];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kBlanco, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
-      child: Row(
-        children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle, color: const Color(0xFFEEF4FF),
-              image: foto != null
-                  ? DecorationImage(image: NetworkImage('$baseUrl$foto'), fit: BoxFit.cover)
-                  : null),
-            child: foto == null
-                ? const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)
+  return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: _kBlanco, borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFE0E8FF), width: 0.5)),
+    child: Row(
+      children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFFEEF4FF),
+            image: foto != null
+                ? DecorationImage(
+                    image: NetworkImage('$baseUrl$foto'),
+                    fit: BoxFit.cover)
                 : null),
-          const SizedBox(width: 8),
-          Expanded(child: Text(nombre,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
-            maxLines: 1, overflow: TextOverflow.ellipsis)),
-          GestureDetector(
-            onTap: _goToAgenda,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFFEEF4FF), borderRadius: BorderRadius.circular(8)),
-              child: const Text('Agendar',
-                style: TextStyle(fontSize: 10, color: _kAzulMedio, fontWeight: FontWeight.bold)))),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _removeFavorite(barberId),
-            child: const Icon(Icons.favorite, color: Colors.red, size: 16)),
-        ],
-      ),
-    );
-  }
+          child: foto == null
+              ? const Icon(Icons.person_rounded, color: _kAzulMedio, size: 18)
+              : null),
+        const SizedBox(width: 8),
+        Expanded(child: Text(nombre,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kNavy),
+          maxLines: 1, overflow: TextOverflow.ellipsis)),
+        GestureDetector(
+          onTap: _goToAgenda,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF4FF),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Text('Agendar',
+              style: TextStyle(fontSize: 10, color: _kAzulMedio, fontWeight: FontWeight.bold)))),
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: () => _removeFavorite(barberId),
+          child: const Icon(Icons.favorite, color: Colors.red, size: 16)),
+      ],
+    ),
+  );
+}
 
   Widget _buildEmptyCard(String texto) {
     return Container(

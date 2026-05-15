@@ -15,18 +15,27 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/barbers/favorites/:userId
 router.get('/favorites/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-  
+    const db = require('mongoose').connection.db;
 
     const favoritos = await Barbero.find({ favoritedBy: userId });
-    
-    res.status(200).json(favoritos);
-  } catch (error) {
 
-    console.error("ERROR EN GET FAVORITOS:", error); 
+    const resultado = await Promise.all(favoritos.map(async (b) => {
+      const docs = await db.collection('barberDocuments').findOne(
+        { barberId: b._id.toString() },
+        { projection: { profileImage: 1 } }
+      );
+      return {
+        ...b.toObject(),
+        profileImage: docs?.profileImage ?? null,
+      };
+    }));
+
+    res.status(200).json(resultado);
+  } catch (error) {
+    console.error("ERROR EN GET FAVORITOS:", error);
     res.status(500).json([]);
   }
 });

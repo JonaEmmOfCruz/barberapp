@@ -1,7 +1,6 @@
-
-const Barber      = require('../models/barberos');
-const AgendaSlot  = require('../models/barberAgendaSlot');
-const mongoose    = require('mongoose');
+const Barber     = require('../models/barberos');
+const AgendaSlot = require('../models/barberAgendaSlot');
+const mongoose   = require('mongoose');
 
 // ── Helper: calcular distancia con Google Directions API ──────────
 async function calcularDistancia(origenLat, origenLng, destinoLat, destinoLng) {
@@ -113,7 +112,7 @@ exports.getCitasBarbero = async (req, res) => {
             reservas.map(async (r) => {
                 const cliente = await db.collection('users').findOne(
                     { _id: r.userId },
-                    { projection: { nombre: 1 } }
+                    { projection: { nombre: 1, profileImage: 1 } }
                 );
                 let distanciaKm = null;
                 if (barberoLat && barberoLng && r.lat && r.lng) {
@@ -121,17 +120,17 @@ exports.getCitasBarbero = async (req, res) => {
                 }
                 return {
                     _id:           r._id,
-                    clienteNombre: cliente?.nombre ?? 'Cliente',
-                    clienteFoto:   null,
-                    domicilio:     r.domicilio ?? '',
+                    clienteNombre: cliente?.nombre        ?? 'Cliente',
+                    clienteFoto:   cliente?.profileImage  ?? null,
+                    domicilio:     r.domicilio            ?? '',
                     distanciaKm,
                     servicios:     Array.isArray(r.servicios) ? r.servicios.join(', ') : 'Cita agendada',
                     hora:          r.hora,
                     fecha:         r.fecha,
-                    precioTotal:   0,
+                    precioTotal:   r.costoTotal           ?? 0,
                     status:        r.status,
-                    lat:           r.lat ?? null,
-                    lng:           r.lng ?? null,
+                    lat:           r.lat                  ?? null,
+                    lng:           r.lng                  ?? null,
                 };
             })
         );
@@ -255,23 +254,40 @@ exports.responderSolicitud = async (req, res) => {
             const horaFin     = new Date();
             const horaLlegada = reserva.horaLlegada;
 
-            // Calcular duración real desde que llegó hasta que finalizó
+            // Calcular duración real
             let duracionReal = null;
             if (horaLlegada) {
                 duracionReal = Math.round((horaFin - new Date(horaLlegada)) / 60000);
             }
 
+            // Calcular precio real
+            const { calcularPrecio } = require('../config/precios');
+            const barbero       = await Barber.findById(reserva.barberId);
+            const promedio      = barbero?.calificacion?.promedio     ?? 0;
+            const totalResenias = barbero?.calificacion?.totalReseñas ?? 0;
+            const distanciaKm   = reserva.distanciaKm ?? 1;
+
+            const precio = calcularPrecio(
+                reserva.servicios,
+                distanciaKm,
+                promedio,
+                totalResenias,
+            );
+
             await db.collection('userReservas').updateOne(
                 { _id: reserva._id },
-                { $set: { status: 'completada', horaFin, duracionReal } }
+                { $set: {
+                    status:         'completada',
+                    horaFin,
+                    duracionReal,
+                    costoTotal:     precio.total,
+                    desglosePrecio: precio,
+                }}
             );
 
             // Actualizar promedio por combinación de servicios
             if (duracionReal && duracionReal > 0 && Array.isArray(reserva.servicios) && reserva.servicios.length > 0) {
-                // Clave = servicios ordenados alfabéticamente para consistencia
-                const clave   = [...reserva.servicios].sort().join(',');
-                const barbero = await Barber.findById(reserva.barberId);
-
+                const clave = [...reserva.servicios].sort().join(',');
                 if (barbero) {
                     const porTipo   = barbero.metricas?.porTipo || {};
                     const existente = porTipo[clave] || { cantidad: 0, promedioMin: 0 };
@@ -279,13 +295,12 @@ exports.responderSolicitud = async (req, res) => {
                     const nuevoPromedio = Math.round(
                         ((existente.promedioMin * existente.cantidad) + duracionReal) / nuevaCant
                     );
-
                     await Barber.findByIdAndUpdate(reserva.barberId, {
                         $inc: { 'metricas.totalServicios': 1 },
                         $set: {
                             [`metricas.porTipo.${clave}`]: {
                                 cantidad:    nuevaCant,
-                                promedioMin: nuevoPromedio
+                                promedioMin: nuevoPromedio,
                             }
                         }
                     });
@@ -298,7 +313,14 @@ exports.responderSolicitud = async (req, res) => {
                 { $set: { status: 'pasado', appointmentId: null, clientId: null } }
             );
             await Barber.findByIdAndUpdate(reserva.barberId, { isWorking: false });
-            res.status(200).json({ success: true, msg: 'Servicio finalizado', duracionReal });
+
+            res.status(200).json({
+                success:        true,
+                msg:            'Servicio finalizado',
+                duracionReal,
+                costoTotal:     precio.total,
+                desglosePrecio: precio,
+            });
         }
 
     } catch (error) {
@@ -313,12 +335,13 @@ exports.responderSolicitud = async (req, res) => {
 exports.getPendientes = async (req, res) => {
     try {
         const { barberId } = req.params;
-      const mongoose = require('mongoose');
-const db = mongoose.connection.readyState === 1 
-  ? mongoose.connection.db 
-  : null;
+        const mongoose = require('mongoose');
+        const db = mongoose.connection.readyState === 1
+            ? mongoose.connection.db
+            : null;
 
-if (!db) return res.status(503).json({ success: false, pendientes: [] });
+        if (!db) return res.status(503).json({ success: false, pendientes: [] });
+
         const BarberDisponibilidad = require('../models/barberDisponibilidad');
 
         const pendientes = await db.collection('userReservas').find({
