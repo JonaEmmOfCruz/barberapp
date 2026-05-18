@@ -5,7 +5,7 @@ class AppConfig {
   // ═══════════════════════════════════════════════
 
   // ── Jeaustin (iPhone físico, red local) ──
-  static const String ipAddress = '192.168.100.4';//casa
+  static const String ipAddress = '192.168.100.16';//casa
   //static const String ipAddress = '172.16.74.174';//Escuela
   
 

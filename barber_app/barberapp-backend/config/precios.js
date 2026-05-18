@@ -34,7 +34,10 @@ function getNivel(promedio, totalResenias) {
 function getPrecioBase(servicios, nivel) {
   const tabla = PRECIOS_BASE[nivel];
   return servicios.reduce((total, servicio) => {
-    return total + (tabla[servicio] ?? 0);
+    const key = Object.keys(tabla).find(
+      k => k.toLowerCase() === servicio.toLowerCase()
+    );
+    return total + (key ? tabla[key] : 0);
   }, 0);
 }
 
